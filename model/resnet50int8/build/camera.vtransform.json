@@ -1,0 +1,164 @@
+{"Layers": [{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to Conv_0 + Relu_1",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "feat_in",
+    "Location": "Device",
+    "Dimensions": [1,80,360,360],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to Conv_0 + Relu_1",
+    "Location": "Device",
+    "Dimensions": [1,80,360,360],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x00000000000003ea"
+},{
+  "Name": "Conv_0 + Relu_1",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to Conv_0 + Relu_1",
+    "Location": "Device",
+    "Dimensions": [1,80,360,360],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "8",
+    "Location": "Device",
+    "Dimensions": [1,80,360,360],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 80,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 57600},
+  "Bias": {"Type": "Half", "Count": 80},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r3s3",
+  "TacticValue": "0x60c3421152ef8e10"
+},{
+  "Name": "Conv_2 + Relu_3",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "8",
+    "Location": "Device",
+    "Dimensions": [1,80,360,360],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "10",
+    "Location": "Device",
+    "Dimensions": [1,80,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [2,2],
+  "Dilation": [1,1],
+  "OutMaps": 80,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 57600},
+  "Bias": {"Type": "Half", "Count": 80},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r3s3",
+  "TacticValue": "0x60c3421152ef8e10"
+},{
+  "Name": "Conv_4 + Relu_5",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "10",
+    "Location": "Device",
+    "Dimensions": [1,80,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Output Tensor 0 to Conv_4 + Relu_5",
+    "Location": "Device",
+    "Dimensions": [1,80,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 80,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 57600},
+  "Bias": {"Type": "Half", "Count": 80},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r3s3",
+  "TacticValue": "0x60c3421152ef8e10"
+},{
+  "Name": "Reformatting CopyNode for Output Tensor 0 to Conv_4 + Relu_5",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Reformatted Output Tensor 0 to Conv_4 + Relu_5",
+    "Location": "Device",
+    "Dimensions": [1,80,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "feat_out",
+    "Location": "Device",
+    "Dimensions": [1,80,180,180],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+}],
+"Bindings": ["feat_in"
+,"feat_out"
+]}

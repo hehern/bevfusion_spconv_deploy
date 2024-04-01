@@ -1,0 +1,1947 @@
+{"Layers": [{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to Conv_0",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "middle",
+    "Location": "Device",
+    "Dimensions": [1,512,180,180],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to Conv_0",
+    "Location": "Device",
+    "Dimensions": [1,512,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x00000000000003ea"
+},{
+  "Name": "Conv_0",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to Conv_0",
+    "Location": "Device",
+    "Dimensions": [1,512,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "510",
+    "Location": "Device",
+    "Dimensions": [1,128,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 589824},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r3s3_aACCESS",
+  "TacticValue": "0x245530c34bd6090f"
+},{
+  "Name": "Conv_4 + Relu_5",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "510",
+    "Location": "Device",
+    "Dimensions": [1,128,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "515",
+    "Location": "Device",
+    "Dimensions": [1,128,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 147456},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r3s3_aACCESS",
+  "TacticValue": "0x245530c34bd6090f"
+},{
+  "Name": "Conv_6 + PWN(Sigmoid_7)",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "515",
+    "Location": "Device",
+    "Dimensions": [1,128,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "517",
+    "Location": "Device",
+    "Dimensions": [1,10,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [1,1],
+  "PostPadding": [1,1],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 10,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 11520},
+  "Bias": {"Type": "Half", "Count": 10},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "GENERIC",
+  "ParameterSubType": "PointWiseExpression",
+  "NbPointWiseExpressionInputArgs": 1,
+  "PointWiseExpressionInputArgs": ["arg0"],
+  "NbPointWiseExpressionOutputVars": 1,
+  "PointWiseExpressionOutputVars": ["var3"],
+  "NbPointWiseExpressionParams": 0,
+  "PointWiseExpressionParams": [],
+  "NbPointWiseExpressionLiterals": 5,
+  "PointWiseExpressionLiterals": ["0.000000e+00f", "1.000000e+00f", "0.000000e+00f", "0.000000e+00f", "5.000000e-01f"],
+  "NbPointWiseExpressionOperations": 4,
+  "PointWiseExpressionOperations": ["auto const var0 = pwgen::iMul(literal4, arg0);", "auto const var1 = pwgen::iTanh(var0);", "auto const var2 = pwgen::iMul(var1, literal4);", "auto const var3 = pwgen::iPlus(var2, literal4);"],
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x32x32_stage4_warpsize4x1x1_g1_tensor16x8x16_t1r3s3_linkable",
+  "TacticValue": "0xecff17b04e8a0aaf"
+},{
+  "Name": "MaxPool_10",
+  "LayerType": "CaskPooling",
+  "Inputs": [
+  {
+    "Name": "517",
+    "Location": "Device",
+    "Dimensions": [1,10,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "520",
+    "Location": "Device",
+    "Dimensions": [1,10,178,178],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Pooling",
+  "PoolingType": "MAX",
+  "WindowSize": [3,3],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "BlendFactor": 0,
+  "AverageCountExcludesPadding": 1,
+  "TacticName": "sm50_xmma_pooling_coalescedC_NHWC_kMAX_3_False",
+  "TacticValue": "0xdb415cba6b0e9137"
+},{
+  "Name": "{ForeignNode[(Unnamed Layer* 7) [Constant] + (Unnamed Layer* 8) [Shuffle]...Transpose_259 + (Unnamed Layer* 379) [Shuffle]]}",
+  "LayerType": "Myelin",
+  "Inputs": [
+  {
+    "Name": "520",
+    "Location": "Device",
+    "Dimensions": [1,10,178,178],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "517",
+    "Location": "Device",
+    "Dimensions": [1,10,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "722",
+    "Location": "Device",
+    "Dimensions": [1,10,32400],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "768",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "(Unnamed Layer* 351) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "738",
+    "Location": "Device",
+    "Dimensions": [1,200],
+    "Format/Datatype": "Row major linear Int32"
+  },
+  {
+    "Name": "783",
+    "Location": "Device",
+    "Dimensions": [1,200,2],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "(Unnamed Layer* 379) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "790 + (Unnamed Layer* 388) [Shuffle]",
+  "LayerType": "Constant",
+  "Inputs": [],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 388) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,32400,1],
+    "Format/Datatype": "Row major linear FP32"
+  }],
+  "ParameterType": "Constant",
+  "weights": {"Type": "Float", "Count": 64800},
+  "dimensions": [1,2,32400,1],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 388) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,32400,1],
+    "Format/Datatype": "Row major linear FP32"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267",
+    "Location": "Device",
+    "Dimensions": [1,2,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267",
+    "Location": "Device",
+    "Dimensions": [1,2,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_265 + BatchNormalization_266 + Relu_267",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 388) [Shuffle]_output_and_Conv_265 + BatchNormalization_266 + Relu_267_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_265 + BatchNormalization_266 + Relu_267_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 256},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x128x32_stage4_warpsize2x2x1_g1_tensor16x8x16_t1r1s1",
+  "TacticValue": "0xea50b6d3d87bf5dd"
+},{
+  "Name": "shuffle_after_Relu_267_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_265 + BatchNormalization_266 + Relu_267_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_267_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,128,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_267_out_tensor_and_Conv_268",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_267_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,128,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_267_out_tensor_and_Conv_268_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_268",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_267_out_tensor_and_Conv_268_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_268_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 16384},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x128x32_stage5_warpsize2x2x1_g1_tensor16x8x16_t1r1s1",
+  "TacticValue": "0x9d78040b7e8c8ac7"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 396) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_268_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,32400],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 396) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 379) [Shuffle]_output_and_Conv_260 + Relu_261",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 379) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 379) [Shuffle]_output_and_Conv_260 + Relu_261_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_260 + Relu_261",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 379) [Shuffle]_output_and_Conv_260 + Relu_261_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_260 + Relu_261_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 256},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize128x32x32_stage4_warpsize4x1x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0x8047bcfcebface4a"
+},{
+  "Name": "shuffle_after_Relu_261_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_260 + Relu_261_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_261_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 351) [Shuffle]_output_and_Conv_245",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 351) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 351) [Shuffle]_output_and_Conv_245_out_region",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_245",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 351) [Shuffle]_output_and_Conv_245_out_region",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_245_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 1280},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x64x64_stage4_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0x361d222e42fcb76c"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 352) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_245_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 352) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_261_out_tensor_and_Conv_262",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_261_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_261_out_tensor_and_Conv_262_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_262",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_261_out_tensor_and_Conv_262_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_262_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 128,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 16384},
+  "Bias": {"Type": "Half", "Count": 128},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 384) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_262_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 384) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "{ForeignNode[Unsqueeze_509...(Unnamed Layer* 812) [Shuffle]]}",
+  "LayerType": "Myelin",
+  "Inputs": [
+  {
+    "Name": "738",
+    "Location": "Device",
+    "Dimensions": [1,200],
+    "Format/Datatype": "Row major linear Int32"
+  },
+  {
+    "Name": "722",
+    "Location": "Device",
+    "Dimensions": [1,10,32400],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "510",
+    "Location": "Device",
+    "Dimensions": [1,128,180,180],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 352) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 384) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 396) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,32400,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "1092",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "(Unnamed Layer* 847) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 840) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 833) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 826) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 819) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  },
+  {
+    "Name": "(Unnamed Layer* 812) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 812) [Shuffle]_output_and_Conv_488 + Relu_489",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 812) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 812) [Shuffle]_output_and_Conv_488 + Relu_489_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_488 + Relu_489",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 812) [Shuffle]_output_and_Conv_488 + Relu_489_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_488 + Relu_489_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_489_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_488 + Relu_489_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_489_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 819) [Shuffle]_output_and_Conv_491 + Relu_492",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 819) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 819) [Shuffle]_output_and_Conv_491 + Relu_492_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_491 + Relu_492",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 819) [Shuffle]_output_and_Conv_491 + Relu_492_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_491 + Relu_492_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_492_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_491 + Relu_492_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_492_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 826) [Shuffle]_output_and_Conv_494 + Relu_495",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 826) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 826) [Shuffle]_output_and_Conv_494 + Relu_495_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_494 + Relu_495",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 826) [Shuffle]_output_and_Conv_494 + Relu_495_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_494 + Relu_495_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_495_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_494 + Relu_495_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_495_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 833) [Shuffle]_output_and_Conv_497 + Relu_498",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 833) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 833) [Shuffle]_output_and_Conv_497 + Relu_498_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_497 + Relu_498",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 833) [Shuffle]_output_and_Conv_497 + Relu_498_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_497 + Relu_498_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_498_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_497 + Relu_498_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_498_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 840) [Shuffle]_output_and_Conv_500 + Relu_501",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 840) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 840) [Shuffle]_output_and_Conv_500 + Relu_501_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_500 + Relu_501",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 840) [Shuffle]_output_and_Conv_500 + Relu_501_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_500 + Relu_501_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_501_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_500 + Relu_501_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_501_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_(Unnamed Layer* 847) [Shuffle]_output_and_Conv_503 + Relu_504",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 847) [Shuffle]_output",
+    "Location": "Device",
+    "Dimensions": [1,128,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 847) [Shuffle]_output_and_Conv_503 + Relu_504_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_503 + Relu_504",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_(Unnamed Layer* 847) [Shuffle]_output_and_Conv_503 + Relu_504_out_region",
+    "Location": "Device",
+    "Dimensions": [1,128,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_503 + Relu_504_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 64,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 8192},
+  "Bias": {"Type": "Half", "Count": 64},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "RELU",
+  "HasBias": 1,
+  "HasReLU": 1,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_Relu_504_out_tensor",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_503 + Relu_504_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Relu_504_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_504_out_tensor_and_Conv_505",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_504_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_504_out_tensor_and_Conv_505_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_505",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_504_out_tensor_and_Conv_505_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_505_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 10,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 640},
+  "Bias": {"Type": "Half", "Count": 10},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_after_(Unnamed Layer* 852) [Convolution]_output",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Conv_505_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 852) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 852) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 852) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 852) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 853) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 852) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,10,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "1098",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "PWN(PWN(PWN(Sigmoid_525), Mul_526), Mul_527)",
+  "LayerType": "PointWiseV2",
+  "Inputs": [
+  {
+    "Name": "1098",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "1092",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "768",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "score",
+    "Location": "Device",
+    "Dimensions": [1,10,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "PointWise",
+  "ParameterSubType": "PointWiseExpression",
+  "NbInputArgs": 3,
+  "InputArgs": ["arg0", "arg1", "arg2"],
+  "NbOutputVars": 1,
+  "OutputVars": ["var5"],
+  "NbParams": 0,
+  "Params": [],
+  "NbLiterals": 5,
+  "Literals": ["0.000000e+00f", "1.000000e+00f", "0.000000e+00f", "0.000000e+00f", "5.000000e-01f"],
+  "NbOperations": 6,
+  "Operations": ["auto const var0 = pwgen::iMul(literal4, arg0);", "auto const var1 = pwgen::iTanh(var0);", "auto const var2 = pwgen::iMul(var1, literal4);", "auto const var3 = pwgen::iPlus(var2, literal4);", "auto const var4 = pwgen::iMul(var3, arg1);", "auto const var5 = pwgen::iMul(var4, arg2);"],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_501_out_tensor_and_Conv_502",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_501_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_501_out_tensor_and_Conv_502_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_502",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_501_out_tensor_and_Conv_502_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_502_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 2,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 128},
+  "Bias": {"Type": "Half", "Count": 2},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_after_(Unnamed Layer* 845) [Convolution]_output",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Conv_502_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 845) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 845) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 845) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 845) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 846) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 845) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "vel",
+    "Location": "Device",
+    "Dimensions": [1,2,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_498_out_tensor_and_Conv_499",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_498_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_498_out_tensor_and_Conv_499_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_499",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_498_out_tensor_and_Conv_499_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_499_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 2,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 128},
+  "Bias": {"Type": "Half", "Count": 2},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_after_(Unnamed Layer* 838) [Convolution]_output",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Conv_499_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 838) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 838) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 838) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 838) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 839) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 838) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "rot",
+    "Location": "Device",
+    "Dimensions": [1,2,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_495_out_tensor_and_Conv_496",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_495_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_495_out_tensor_and_Conv_496_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_496",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_495_out_tensor_and_Conv_496_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_496_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,3,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 3,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 192},
+  "Bias": {"Type": "Half", "Count": 3},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_after_(Unnamed Layer* 831) [Convolution]_output",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Conv_496_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,3,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 831) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,3,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 831) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 831) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,3,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 831) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,3,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 832) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 831) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,3,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "dim",
+    "Location": "Device",
+    "Dimensions": [1,3,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_492_out_tensor_and_Conv_493",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_492_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_492_out_tensor_and_Conv_493_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_493",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_492_out_tensor_and_Conv_493_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_493_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,1,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 1,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 64},
+  "Bias": {"Type": "Half", "Count": 1},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_indexed_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16",
+  "TacticValue": "0xe1ff5ad20f5c6bf6"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 824) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Conv_493_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,1,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 824) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,1,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to (Unnamed Layer* 825) [Shuffle]",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 824) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,1,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to (Unnamed Layer* 825) [Shuffle]",
+    "Location": "Device",
+    "Dimensions": [1,1,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 825) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to (Unnamed Layer* 825) [Shuffle]",
+    "Location": "Device",
+    "Dimensions": [1,1,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "height",
+    "Location": "Device",
+    "Dimensions": [1,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_between_Relu_489_out_tensor_and_Conv_490",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Relu_489_out_tensor",
+    "Location": "Device",
+    "Dimensions": [1,64,200,1],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "shuffle_between_Relu_489_out_tensor_and_Conv_490_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "Conv_490",
+  "LayerType": "CaskConvolution",
+  "Inputs": [
+  {
+    "Name": "shuffle_between_Relu_489_out_tensor_and_Conv_490_out_region",
+    "Location": "Device",
+    "Dimensions": [1,64,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Conv_490_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "ParameterType": "Convolution",
+  "Kernel": [1,1],
+  "PaddingMode": "kEXPLICIT_ROUND_DOWN",
+  "PrePadding": [0,0],
+  "PostPadding": [0,0],
+  "Stride": [1,1],
+  "Dilation": [1,1],
+  "OutMaps": 2,
+  "Groups": 1,
+  "Weights": {"Type": "Half", "Count": 128},
+  "Bias": {"Type": "Half", "Count": 2},
+  "HasSparseWeights": 0,
+  "HasDynamicFilter": 0,
+  "HasDynamicBias": 0,
+  "HasResidual": 0,
+  "ConvXAsActInputIdx": -1,
+  "BiasAsActInputIdx": -1,
+  "ResAsActInputIdx": -1,
+  "Activation": "NONE",
+  "HasBias": 1,
+  "HasReLU": 0,
+  "TacticName": "sm80_xmma_fprop_implicit_gemm_f16f16_f16f16_f16_nhwckrsc_nhwc_tilesize64x32x64_stage5_warpsize2x2x1_g1_tensor16x8x16_simple_t1r1s1",
+  "TacticValue": "0xe69f3e9fcc7b2069"
+},{
+  "Name": "Reformatting CopyNode for Input Tensor 0 to shuffle_after_(Unnamed Layer* 817) [Convolution]_output",
+  "LayerType": "Reformat",
+  "Inputs": [
+  {
+    "Name": "Conv_490_new_out_region",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Channel major FP16 format where channel % 8 == 0"
+  }],
+  "Outputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 817) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "ParameterType": "Reformat",
+  "Origin": "REFORMAT",
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "shuffle_after_(Unnamed Layer* 817) [Convolution]_output",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "Reformatted Input Tensor 0 to shuffle_after_(Unnamed Layer* 817) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,1,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "(Unnamed Layer* 817) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "(Unnamed Layer* 818) [Shuffle]",
+  "LayerType": "NoOp",
+  "Inputs": [
+  {
+    "Name": "(Unnamed Layer* 817) [Convolution]_output",
+    "Location": "Device",
+    "Dimensions": [1,2,200,1],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "1058",
+    "Location": "Device",
+    "Dimensions": [1,2,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+},{
+  "Name": "{ForeignNode[Transpose_506...Concat_519]}",
+  "LayerType": "Myelin",
+  "Inputs": [
+  {
+    "Name": "783",
+    "Location": "Device",
+    "Dimensions": [1,200,2],
+    "Format/Datatype": "Row major linear FP16 format"
+  },
+  {
+    "Name": "1058",
+    "Location": "Device",
+    "Dimensions": [1,2,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "Outputs": [
+  {
+    "Name": "reg",
+    "Location": "Device",
+    "Dimensions": [1,2,200],
+    "Format/Datatype": "Row major linear FP16 format"
+  }],
+  "TacticValue": "0x0000000000000000"
+}],
+"Bindings": ["middle"
+,"reg"
+,"height"
+,"dim"
+,"rot"
+,"vel"
+,"score"
+]}
