@@ -49,10 +49,10 @@ include_directories(
   $ENV{CUDA_Inc}
   $ENV{TensorRT_Inc}
   $ENV{Python_Inc}
-  ../dependencies/stb
-  ../dependencies/pybind11/include
-  ../libraries/cuOSD/src
-  ../libraries/3DSparseConvolution/libspconv/include
+  dependencies/stb
+  dependencies/pybind11/include
+  libraries/cuOSD/src
+  libraries/3DSparseConvolution/libspconv/include
   src/common
   src/
 )
@@ -60,7 +60,7 @@ include_directories(
 link_directories(
   $ENV{CUDA_Lib}
   $ENV{TensorRT_Lib}
-  ../libraries/3DSparseConvolution/libspconv/lib/${arch}
+  libraries/3DSparseConvolution/libspconv/lib/${arch}
   build
   $ENV{Python_Lib}
 )
@@ -73,8 +73,8 @@ file(GLOB_RECURSE CORE_FILES
 )
 
 file(GLOB_RECURSE VISUALIZE_FILES 
-  ../libraries/cuOSD/src/*.cpp
-  ../libraries/cuOSD/src/*.cu
+  libraries/cuOSD/src/*.cpp
+  libraries/cuOSD/src/*.cu
   src/common/visualize.cu
 )
 
