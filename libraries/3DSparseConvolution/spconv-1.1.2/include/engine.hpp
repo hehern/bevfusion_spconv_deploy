@@ -31,8 +31,6 @@
 
 namespace spconv {
 
-#define Exported __attribute__((visibility("default")))
-
 enum class Precision : int { None = 0, Float16 = 1, Int8 = 2 };
 
 /**
@@ -99,8 +97,8 @@ public:
 
 class EngineBuilder{
 public:
-  Exported virtual ITensor* push_input(const std::string& name) = 0;
-  Exported virtual INode* push_add(
+  virtual ITensor* push_input(const std::string& name) = 0;
+  virtual INode* push_add(
       const std::string& name, 
       ITensor* a, 
       ITensor* b,
@@ -109,29 +107,29 @@ public:
       const std::string& output_name,
       Precision precision, Precision output_precision) = 0;
 
-  Exported virtual INode* push_relu(
+  virtual INode* push_relu(
       const std::string& name, 
       ITensor* x, 
       const std::string& output_name) = 0;
 
-  Exported virtual INode* push_dense(
+  virtual INode* push_dense(
       const std::string& name, ITensor* x,
       const std::string& format,
       const std::string& output_name,
       const std::vector<int>& input_spatial_shape,
       const std::vector<int>& output_shape) = 0;
 
-  Exported virtual INode* push_reshape(
+  virtual INode* push_reshape(
       const std::string& name, ITensor* x, 
       const std::vector<int64_t>& shape,
       const std::string& output_name) = 0;
 
-  Exported virtual INode* push_transpose(
+  virtual INode* push_transpose(
       const std::string& name, ITensor* x, 
       const std::vector<int64_t>& dims,
       const std::string& output_name) = 0;
 
-  Exported virtual INode* push_sparse_conv(
+  virtual INode* push_sparse_conv(
       const std::string& name, 
       ITensor* x,
       const std::vector<unsigned short>& weight,
@@ -152,16 +150,16 @@ public:
       Precision output_precision,
       const std::string& output_name) = 0;
 
-  Exported virtual void push_output(ITensor* value) = 0;
+  virtual void push_output(ITensor* value) = 0;
 
   // build engine
-  Exported virtual std::shared_ptr<Engine> build(Precision precision, void* stream = nullptr) = 0;
+  virtual std::shared_ptr<Engine> build(Precision precision, void* stream = nullptr) = 0;
 };
 
 /**
  * To build a engine.
 */
-Exported std::shared_ptr<EngineBuilder> create_engine_builder();//这个的实现也封装起来啦？？？
+std::shared_ptr<EngineBuilder> create_engine_builder();
 
 /**
   Enable detailed information output
