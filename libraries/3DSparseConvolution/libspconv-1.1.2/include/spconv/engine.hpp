@@ -74,7 +74,7 @@ class Engine {
     grid_size:      The grid size of the input data, For example: 41,1440,1440 or 1440,1440,41
     stream:         Which stream is expected to enqueue the inference.
   **/
-  Exported virtual void forward(void* stream = nullptr) = 0;
+  Exported virtual void forward(void* stream = nullptr) = 0;//这个也封装起来了
   Exported virtual size_t num_input() const = 0;
   Exported virtual SparseDTensor* input(unsigned int index) = 0;
   Exported virtual size_t num_output() const = 0;
@@ -161,7 +161,7 @@ public:
 /**
  * To build a engine.
 */
-Exported std::shared_ptr<EngineBuilder> create_engine_builder();
+Exported std::shared_ptr<EngineBuilder> create_engine_builder();//这个的实现也封装起来啦？？？
 
 /**
   Enable detailed information output

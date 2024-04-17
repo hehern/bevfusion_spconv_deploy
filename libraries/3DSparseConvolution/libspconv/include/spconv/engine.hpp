@@ -30,7 +30,7 @@
 
 namespace spconv {
 
-#define Exported __attribute__((visibility("default")))
+#define Exported __attribute__((visibility("default")))//宏定义
 
 enum class DType : int { None = 0, Int32 = 1, Float16 = 2 };
 enum class Precision : int { None = 0, Float16 = 1, Int8 = 2 };

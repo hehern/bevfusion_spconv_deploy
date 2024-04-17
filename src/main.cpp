@@ -213,7 +213,7 @@ std::shared_ptr<bevfusion::Core> create_core(const std::string& model, const std
   param.transfusion = nv::format("model/%s/build/fuser.plan", model.c_str());
   param.transbbox = transbbox;
   param.camera_vtransform = nv::format("model/%s/build/camera.vtransform.plan", model.c_str());
-  return bevfusion::create_core(param);
+  return bevfusion::create_core(param);//CoreImplement
 }
 
 int main(int argc, char** argv) {
@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
   if (argc > 2) model     = argv[2];
   if (argc > 3) precision = argv[3];
 
-  auto core = create_core(model, precision);
+  auto core = create_core(model, precision);//参数初始化以及创建CoreImplement
   if (core == nullptr) {
     printf("Core has been failed.\n");
     return -1;
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
   cudaStreamCreate(&stream);
  
   core->print();
-  core->set_timer(true);
+  core->set_timer(true);//
 
   // Load matrix to host
   auto camera2lidar = nv::Tensor::load(nv::format("%s/camera2lidar.tensor", data), false);
@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
       core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
 
   // evaluate inference time
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 5; ++i) {//这里为什么要执行5次？？？
     core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
   }
 

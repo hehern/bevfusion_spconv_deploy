@@ -198,9 +198,9 @@ int main(int argc, char** argv) {
 
   cudaStream_t stream = nullptr;
   checkRuntime(cudaStreamCreate(&stream));
-  if (strcmp(cmd, "memint8") == 0) do_memory_usage_test(spconv::Precision::Int8, stream);
+  if (strcmp(cmd, "memint8") == 0) do_memory_usage_test(spconv::Precision::Int8, stream);//mem占用测试
   if (strcmp(cmd, "memfp16") == 0) do_memory_usage_test(spconv::Precision::Float16, stream);
-  if (strcmp(cmd, "int8") == 0) do_simple_run(spconv::Precision::Int8, stream);
+  if (strcmp(cmd, "int8") == 0) do_simple_run(spconv::Precision::Int8, stream);//运行
   if (strcmp(cmd, "fp16") == 0) do_simple_run(spconv::Precision::Float16, stream);
   checkRuntime(cudaStreamDestroy(stream));
   return 0;

@@ -35,16 +35,16 @@ class SCNImplement : public SCN {
     voxelization_ = create_voxelization(param_.voxelization);
     if (voxelization_ == nullptr) return false;
 
-    native_scn_ = spconv::load_engine_from_onnx(param_.model, static_cast<spconv::Precision>(param_.precision));
+    native_scn_ = spconv::load_engine_from_onnx(param_.model, static_cast<spconv::Precision>(param_.precision));//加载onnx：lidar.backbone.xyz.onnx
     return native_scn_ != nullptr;
   }
 
   virtual const nvtype::half* forward(const nvtype::half* points, unsigned int num_points, void* stream) override {
-    voxelization_->forward(points, num_points, stream, param_.order);
+    voxelization_->forward(points, num_points, stream, param_.order);//点云体素化
     native_scn_output_ = native_scn_->forward(
         std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->voxel_dim()}, spconv::DType::Float16,
         (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
-        spconv::DType::Int32, (void*)voxelization_->indices(), 1, voxelization_->grid_size(), stream);
+        spconv::DType::Int32, (void*)voxelization_->indices(), 1, voxelization_->grid_size(), stream);//SparseEncoder
     return native_scn_output_ == nullptr ? nullptr : (nvtype::half*)native_scn_output_->features_data();
   }
 

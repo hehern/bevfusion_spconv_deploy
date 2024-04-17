@@ -69,7 +69,7 @@ class CoreImplement : public Core {
       return false;
     }
 
-    lidar_scn_ = lidar::create_scn(param.lidar_scn);
+    lidar_scn_ = lidar::create_scn(param.lidar_scn);//SCNImplement
     if (lidar_scn_ == nullptr) {
       printf("Failed to create lidar scn.\n");
       return false;
@@ -150,7 +150,7 @@ class CoreImplement : public Core {
     size_t bytes_points = num_points * param_.lidar_scn.voxelization.num_feature * sizeof(nvtype::half);
     checkRuntime(cudaMemcpyAsync(lidar_points_host_, lidar_points, bytes_points, cudaMemcpyHostToHost, _stream));
     checkRuntime(cudaMemcpyAsync(lidar_points_device_, lidar_points_host_, bytes_points, cudaMemcpyHostToDevice, _stream));
-    timer_.stop("[NoSt] CopyLidar");
+    timer_.stop("[NoSt] CopyLidar");//timer_.start与stop配合计时
 
     nvtype::half* normed_images = (nvtype::half*)camera_images;
     if (do_normalization) {
@@ -198,7 +198,7 @@ class CoreImplement : public Core {
 
   virtual std::vector<head::transbbox::BoundingBox> forward(const unsigned char** camera_images, const nvtype::half* lidar_points,
                                                             int num_points, void* stream) override {
-    if (enable_timer_) {
+    if (enable_timer_) {//true
       return this->forward_timer(camera_images, lidar_points, num_points, stream, true);
     } else {
       return this->forward_only(camera_images, lidar_points, num_points, stream, true);
@@ -246,7 +246,7 @@ class CoreImplement : public Core {
   std::shared_ptr<camera::VTransform> camera_vtransform_;
   std::shared_ptr<camera::Depth> camera_depth_;
   std::shared_ptr<camera::Geometry> camera_geometry_;
-  std::shared_ptr<lidar::SCN> lidar_scn_;
+  std::shared_ptr<lidar::SCN> lidar_scn_;//lidar sparse conv net
   std::shared_ptr<fuser::Transfusion> transfusion_;
   std::shared_ptr<head::transbbox::TransBBox> transbbox_;
   float confidence_threshold_ = 0;

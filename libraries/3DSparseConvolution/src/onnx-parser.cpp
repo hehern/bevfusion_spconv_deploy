@@ -97,35 +97,35 @@ static std::vector<int> get_attribute_as_intarray(const onnx::NodeProto& node, c
     return output;
 };
 
-std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Precision precision, void* stream, bool mark_all_output){
+std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Precision precision, void* stream, bool mark_all_output){//加载onnx：lidar.backbone.xyz.onnx
 
     onnx::ModelProto model;
     std::fstream fin(onnx_file, std::ios::binary | std::ios::in);
-    if (!model.ParseFromIstream(&fin)) {
+    if (!model.ParseFromIstream(&fin)) {//反序列化onnx，读取模型
         LOGV("Parse onnx failed: %s", onnx_file.c_str());
         return nullptr;
     }
 
-    auto builder = spconv::create_engine_builder();
-    auto graph = model.graph();
+    auto builder = spconv::create_engine_builder();//?
+    auto graph = model.graph();//graph，包含输入张量信息、输出张量信息、节点信息
     
-    std::unordered_map<std::string, spconv::ITensor*> tensor_map_by_name;
-    for (int i = 0; i < graph.input_size(); ++i) {
+    std::unordered_map<std::string, spconv::ITensor*> tensor_map_by_name;//输入、输出tensor map
+    for (int i = 0; i < graph.input_size(); ++i) {//遍历所有的输入张量,对于scn来讲输入只有一个
         auto name = graph.input(i).name();
         tensor_map_by_name[name] = builder->push_input(name);
     }
 
     std::vector<spconv::ITensor*> collect_outputs;
-    for (int i = 0; i < model.graph().node_size(); ++i) {
-        auto& node = model.graph().node(i);
-        if (node.op_type() == "SparseConvolution") {
+    for (int i = 0; i < model.graph().node_size(); ++i) {//遍历所有的node，有conv add relu等
+        auto& node = model.graph().node(i);//取当前node
+        if (node.op_type() == "SparseConvolution") {//是稀疏卷积（注意有两种稀疏卷积，type都是SparseConvolution，rulebook命名时候不一样）
 
-            auto x = tensor_map_by_name[node.input(0)];
-            auto weight = get_initializer_data(graph, node.input(1));
-            auto bias   = get_initializer_data(graph, node.input(2));
-            auto weight_dynamic_ranges_proto = get_attribute(node, "weight_dynamic_ranges");
+            auto x = tensor_map_by_name[node.input(0)];//输入tensor
+            auto weight = get_initializer_data(graph, node.input(1));//spconv0.weight
+            auto bias   = get_initializer_data(graph, node.input(2));//spconv0.bias(可以通过netron打开onnx对应查看)
+            auto weight_dynamic_ranges_proto = get_attribute(node, "weight_dynamic_ranges");//长度为16，具体含义未知！！！
             auto weight_dynamic_ranges = 
-                std::vector<float>(weight_dynamic_ranges_proto.floats().begin(), weight_dynamic_ranges_proto.floats().end());
+                std::vector<float>(weight_dynamic_ranges_proto.floats().begin(), weight_dynamic_ranges_proto.floats().end());//转换为vector类型
 
             auto n = builder->push_sparse_conv(
                 node.name(), x, 
@@ -146,7 +146,7 @@ std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Prec
                 node.output(0)
             );
 
-            if(mark_all_output){
+            if(mark_all_output){//false
                 collect_outputs.push_back(n->output(0));
             }
             tensor_map_by_name[node.output(0)] = n->output(0);
