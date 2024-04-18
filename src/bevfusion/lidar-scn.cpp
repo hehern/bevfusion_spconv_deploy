@@ -35,7 +35,7 @@ class SCNImplement : public SCN {
     voxelization_ = create_voxelization(param_.voxelization);
     if (voxelization_ == nullptr) return false;
 
-    native_scn_ = spconv::load_engine_from_onnx(param_.model, static_cast<spconv::Precision>(param_.precision));//加载onnx：lidar.backbone.xyz.onnx
+    native_scn_ = spconv::load_engine_from_onnx(param_.model, static_cast<spconv::Precision>(param_.precision));//加载onnx：lidar.backbone.xyz.onnx,Engine类型
     return native_scn_ != nullptr;
   }
 
