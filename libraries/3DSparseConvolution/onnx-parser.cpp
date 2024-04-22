@@ -24,6 +24,7 @@
 #include "onnx-parser.hpp"
 #include "onnx/onnx-ml.pb.h"
 #include "onnx/onnx-operators-ml.pb.h"
+#include "engine.hpp"
 #include <fstream>
 #include <numeric>
 #include <unordered_map>

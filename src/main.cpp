@@ -166,16 +166,16 @@ std::shared_ptr<bevfusion::Core> create_core(const std::string& model, const std
   voxelization.max_range = nvtype::Float3(+54.0f, +54.0f, +3.0);
   voxelization.voxel_size = nvtype::Float3(0.075f, 0.075f, 0.2f);
   voxelization.grid_size =
-      voxelization.compute_grid_size(voxelization.max_range, voxelization.min_range, voxelization.voxel_size);
-  voxelization.max_points_per_voxel = 10;
-  voxelization.max_points = 300000;
-  voxelization.max_voxels = 160000;
-  voxelization.num_feature = 5;
+      voxelization.compute_grid_size(voxelization.max_range, voxelization.min_range, voxelization.voxel_size);//108/0.075=1440, 1440, 40
+  voxelization.max_points_per_voxel = 10;//每个voxel最多保存10个点
+  voxelization.max_points = 300000;//最大点云个数30w，图达通的点云单帧不足10w，这里可以改，节省些内存
+  voxelization.max_voxels = 160000;//最大体素个数16w，但是我们实际8294w4000个栅格
+  voxelization.num_feature = 5;//点特征维度，一般指xyzi？
 
   bevfusion::lidar::SCNParameter scn;
   scn.voxelization = voxelization;
   scn.model = nv::format("model/%s/lidar.backbone.xyz.onnx", model.c_str());
-  scn.order = bevfusion::lidar::CoordinateOrder::XYZ;
+  scn.order = bevfusion::lidar::CoordinateOrder::XYZ;//
 
   if (precision == "int8") {
     scn.precision = bevfusion::lidar::Precision::Int8;

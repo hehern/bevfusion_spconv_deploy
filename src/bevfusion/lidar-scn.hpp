@@ -35,10 +35,10 @@ namespace lidar {
 enum class Precision : int { NonePrecision = 0, Float16 = 1, Int8 = 2 };
 
 struct SCNParameter {
-  VoxelizationParameter voxelization;
-  std::string model;
-  CoordinateOrder order = CoordinateOrder::XYZ;
-  Precision precision = Precision::Float16;
+  VoxelizationParameter voxelization;//定义了栅格的个数以及分辨率等信息
+  std::string model;//onnx模型保存路径
+  CoordinateOrder order = CoordinateOrder::XYZ;//栅格坐标顺序
+  Precision precision = Precision::Float16;//精度：fp32 fp16 int8三种可选
 };
 
 class SCN {

@@ -32,7 +32,7 @@
 namespace bevfusion {
 namespace lidar {
 
-enum class CoordinateOrder : int {
+enum class CoordinateOrder : int {//坐标顺序
   NoneOrder = 0,
   XYZ = 1,  // BEVFusion
   ZYX = 2   // CenterPoint

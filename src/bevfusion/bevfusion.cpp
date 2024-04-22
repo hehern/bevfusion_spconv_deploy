@@ -149,22 +149,22 @@ class CoreImplement : public Core {
 
     size_t bytes_points = num_points * param_.lidar_scn.voxelization.num_feature * sizeof(nvtype::half);
     checkRuntime(cudaMemcpyAsync(lidar_points_host_, lidar_points, bytes_points, cudaMemcpyHostToHost, _stream));
-    checkRuntime(cudaMemcpyAsync(lidar_points_device_, lidar_points_host_, bytes_points, cudaMemcpyHostToDevice, _stream));
+    checkRuntime(cudaMemcpyAsync(lidar_points_device_, lidar_points_host_, bytes_points, cudaMemcpyHostToDevice, _stream));//将当前帧激光雷达点云拷贝到gpu上-lidar_points_device_
     timer_.stop("[NoSt] CopyLidar");//timer_.start与stop配合计时
 
     nvtype::half* normed_images = (nvtype::half*)camera_images;
     if (do_normalization) {
       timer_.start(_stream);
-      normed_images = (nvtype::half*)this->normalizer_->forward((const unsigned char**)(camera_images), stream);
+      normed_images = (nvtype::half*)this->normalizer_->forward((const unsigned char**)(camera_images), stream);//图片resize crop normal
       timer_.stop("[NoSt] ImageNrom");
     }
 
     timer_.start(_stream);
-    const nvtype::half* lidar_feature = this->lidar_scn_->forward(lidar_points_device_, num_points, stream);
+    const nvtype::half* lidar_feature = this->lidar_scn_->forward(lidar_points_device_, num_points, stream);//体素化以及sparseencoder
     times.emplace_back(timer_.stop("Lidar Backbone"));
 
     timer_.start(_stream);
-    const nvtype::half* depth = this->camera_depth_->forward(lidar_points_device_, num_points, 5, stream);
+    const nvtype::half* depth = this->camera_depth_->forward(lidar_points_device_, num_points, 5, stream);//将激光点云投影到图片上，获得深度真值
     times.emplace_back(timer_.stop("Camera Depth"));
 
     timer_.start(_stream);

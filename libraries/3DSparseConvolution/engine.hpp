@@ -36,24 +36,19 @@ enum class Precision : int { None = 0, Float16 = 1, Int8 = 2 };
 /**
   Storage of data tensor
 **/
-class SparseDTensor {
+class DTensor {
  public:
-  virtual const Tensor& features() const = 0;
-  virtual const Tensor& indices() const  = 0;
+  virtual std::vector<int64_t> features_shape() const = 0;
+  virtual DType features_dtype() const = 0;
+  virtual void* features_data() = 0;
+
+  virtual std::vector<int64_t> indices_shape() const = 0;
+  virtual DType indices_dtype() const = 0;
+  virtual void* indices_data() = 0;
 
   virtual std::vector<int> grid_size() const = 0;
   virtual int device() const = 0;
-
-  virtual std::string name() const = 0;
-
-  virtual void set_data(
-    const std::vector<int64_t>& features_shape,
-    DataType features_dtype, void* features_data,
-    const std::vector<int64_t>& indices_shape, DataType indices_dtype,
-    void* indices_data, std::vector<int> grid_size
-  ) = 0;
 };
-
 
 /**
   Engine types for sparse convolution

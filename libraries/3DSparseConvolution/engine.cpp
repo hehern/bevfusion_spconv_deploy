@@ -2,7 +2,7 @@
 
 namespace spconv {
 
-class DTensor : public SparseDTensor {
+class SparseDTensor : public DTensor {
  public:
   virtual const Tensor& features() const override {}
   virtual const Tensor& indices() const override {}
@@ -94,33 +94,33 @@ class EngineBuilderImplement : public EngineBuilder {
 
   virtual INode* push_add(const std::string& name, ITensor* a, ITensor* b, float a_dynamic_range, float b_dynamic_range,
                           const std::string& output_name, Precision precision, Precision output_precision) override {
-    auto node = Add(name, x, attributes);
-    nodes_.push_back(x);
+    auto node = Add(name, a, b, a_dynamic_range, b_dynamic_range, output_name, precision, output_precision);
+    nodes_.push_back(node);
     return node;
   }
 
   virtual INode* push_relu(const std::string& name, ITensor* x, const std::string& output_name) override {
-    auto node = Relu(name, x, attributes);
-    nodes_.push_back(x);
+    auto node = Relu(name, x, output_name);
+    nodes_.push_back(node);
     return node;
   }
 
   virtual INode* push_dense(const std::string& name, ITensor* x, const std::string& format, const std::string& output_name, 
                             const std::vector<int>& input_spatial_shape, const std::vector<int>& output_shape) override {
-    auto node = Dense(name, x, attributes);
-    nodes_.push_back(x);
+    auto node = Dense(name, x, format, output_name, input_spatial_shape, output_shape);
+    nodes_.push_back(node);
     return node;
   }
 
   virtual INode* push_reshape(const std::string& name, ITensor* x, const std::vector<int64_t>& shape, const std::string& output_name) override {
-    auto node = Reshape(name, x, attributes);
-    nodes_.push_back(x);
+    auto node = Reshape(name, x, shape, output_name);
+    nodes_.push_back(node);
     return node;
   }
 
   virtual INode* push_transpose(const std::string& name, ITensor* x, const std::vector<int64_t>& dims, const std::string& output_name) override {
-    auto node = Transpose(name, x, attributes);
-    nodes_.push_back(x);
+    auto node = Transpose(name, x, dims, output_name);
+    nodes_.push_back(node);
     return node;
   }
 
