@@ -22,8 +22,7 @@
  */
 
 #include "lidar-scn.hpp"
-
-#include <spconv/onnx-parser.hpp>
+#include "onnx-parser.hpp"
 
 namespace bevfusion {
 namespace lidar {
@@ -41,22 +40,24 @@ class SCNImplement : public SCN {
 
   virtual const nvtype::half* forward(const nvtype::half* points, unsigned int num_points, void* stream) override {//在gpu上保存的点云、点个数
     voxelization_->forward(points, num_points, stream, param_.order);//点云体素化,输出：有效voxel个数（real_num_voxels_）、每个voxel中点平均特征（d_voxel_features_）、特征voxel对应的每个voxel的xyz index
-    native_scn_output_ = native_scn_->forward(
-        std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->voxel_dim()}, spconv::DType::Float16,
-        (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
-        spconv::DType::Int32, (void*)voxelization_->indices(), 1, voxelization_->grid_size(), stream);//SparseEncoder
-    return native_scn_output_ == nullptr ? nullptr : (nvtype::half*)native_scn_output_->features_data();
+    native_scn_->forward(
+      std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->voxel_dim()}, nv::DataType::Float16,
+      (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
+      nv::DataType::Int32, (void*)voxelization_->indices(), voxelization_->grid_size(), stream);
+
+    native_scn_output_ = native_scn_->output(0);
+    return native_scn_output_ == nullptr ? nullptr : (nvtype::half*)native_scn_output_->features().data->data;
   }
 
-  virtual std::vector<int64_t> shape() override {
-    return native_scn_output_ == nullptr ? std::vector<int64_t>() : native_scn_output_->features_shape();
-  }
+  // virtual std::vector<int64_t> shape() override {
+  //   return native_scn_output_ == nullptr ? std::vector<int64_t>() : native_scn_output_->grid_size();
+  // }
 
  private:
   SCNParameter param_;
   std::shared_ptr<Voxelization> voxelization_;//体素化
   std::shared_ptr<spconv::Engine> native_scn_;//自定义的引擎（load onnx之后，手动构建的engine）
-  spconv::DTensor* native_scn_output_ = nullptr;//稀疏张量还是密集张量呢？具体是个啥类型啊？
+  spconv::SparseDTensor* native_scn_output_ = nullptr;
 };
 
 std::shared_ptr<SCN> create_scn(const SCNParameter& param) {

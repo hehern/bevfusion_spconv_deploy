@@ -27,29 +27,15 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <spconv/tensor.hpp>
+#include <fstream>
+#include <numeric>
+#include <unordered_map>
+#include <algorithm>
+
+#include "node.hpp"
+
 
 namespace spconv {
-
-enum class Precision : int { None = 0, Float16 = 1, Int8 = 2 };
-
-/**
-  Storage of data tensor
-**/
-class DTensor {
- public:
-  virtual std::vector<int64_t> features_shape() const = 0;
-  virtual DType features_dtype() const = 0;
-  virtual void* features_data() = 0;
-
-  virtual std::vector<int64_t> indices_shape() const = 0;
-  virtual DType indices_dtype() const = 0;
-  virtual void* indices_data() = 0;
-
-  virtual std::vector<int> grid_size() const = 0;
-  virtual int device() const = 0;
-};
-
 /**
   Engine types for sparse convolution
 **/
@@ -68,104 +54,123 @@ class Engine {
     grid_size:      The grid size of the input data, For example: 41,1440,1440 or 1440,1440,41
     stream:         Which stream is expected to enqueue the inference.
   **/
-  virtual void forward(void* stream = nullptr) = 0;
-  virtual size_t num_input() const = 0;
-  virtual SparseDTensor* input(unsigned int index) = 0;
-  virtual size_t num_output() const = 0;
-  virtual SparseDTensor* output(unsigned int index) = 0;
-};
+  Engine(const std::vector<std::shared_ptr<SparseDTensor>>& input_tenosr, 
+         const std::vector<std::shared_ptr<SparseDTensor>>& output_tenosr, 
+         const std::vector<std::shared_ptr<INode>>& nodes):
+         inputs_(input_tenosr),
+         outputs_(output_tenosr),
+         nodes_(nodes) {}
+  void forward(const std::vector<int64_t>& features_shape,
+               nv::DataType features_dtype, void* features_data,
+               const std::vector<int64_t>& indices_shape, nv::DataType indices_dtype,
+               void* indices_data, std::vector<int> grid_size, void *stream) {
 
-class ITensor{
-public:
-  ITensor(const std::string& name, INode* parent = nullptr) {
-    name_ = name;
-    value_ = 0;
-    parent_ = parent;
+    for(int i=0; i<nodes_.size(); i++) {
+      nodes_[i]->set_is_computed(false);
+    }
+    inputs_[0]->set_data(features_shape, features_dtype, features_data, indices_shape, indices_dtype, indices_data, grid_size);
+    outputs_[0]->update();
   }
-  std::string name() { return name_;}
+  size_t num_input() const { return inputs_.size(); }
+  size_t num_output() const {return outputs_.size(); }
+  SparseDTensor* input(unsigned int index) { return inputs_[index].get(); }
+  SparseDTensor* output(unsigned int index) { return outputs_[index].get(); }
 
-private:
-  std::string name_;
-  SparseDTensor value_;
-  INode* parent_ = nullptr;
-};
+ private:
+  std::vector<std::shared_ptr<SparseDTensor>> inputs_;
+  std::vector<std::shared_ptr<SparseDTensor>> outputs_;
 
-class INode{
-public:
-  virtual std::string name() = 0;
-  virtual std::string optype() = 0;
-  virtual ITensor* input(unsigned int index) = 0;
-  virtual ITensor* output(unsigned int index) = 0;
-
-  virtual unsigned int num_output() = 0;
-  virtual unsigned int num_input() = 0;
+  std::vector<std::shared_ptr<INode>> nodes_;
 };
 
 class EngineBuilder{
-public:
-  virtual ITensor* push_input(const std::string& name) = 0;
-  virtual INode* push_add(
-      const std::string& name, 
-      ITensor* a, 
-      ITensor* b,
-      float a_dynamic_range,
-      float b_dynamic_range,
-      const std::string& output_name,
-      Precision precision, Precision output_precision) = 0;
+ public:
+  void init() {
+    inputs_.clear();
+    outputs_.clear();
+    nodes_.clear();
+    engine_ = nullptr;
+  }
 
-  virtual INode* push_relu(
-      const std::string& name, 
-      ITensor* x, 
-      const std::string& output_name) = 0;
+  SparseDTensor* push_input(const std::string& name) {
+    std::shared_ptr<SparseDTensor> x(new SparseDTensor(name));
+    inputs_.push_back(x);
+    return x.get();
+  }
 
-  virtual INode* push_dense(
-      const std::string& name, ITensor* x,
-      const std::string& format,
-      const std::string& output_name,
-      const std::vector<int>& input_spatial_shape,
-      const std::vector<int>& output_shape) = 0;
+  INode* push_sparse_conv(const std::string& name, SparseDTensor* x,
+                          const std::vector<unsigned short>& weight, const std::vector<int>& weight_shape,
+                          const std::vector<float>& weight_dynamic_ranges, const std::vector<unsigned short>& bias,
+                          const std::vector<int>& bias_shape, const std::string& activation,
+                          const std::vector<int>& kernel_size, const std::vector<int>& stride,
+                          const std::vector<int>& padding, const std::vector<int>& dilation,
+                          float input_dynamic_range, bool submanifold,
+                          int max_output_points,const std::string& rulebook,
+                          Precision precision, Precision output_precision,
+                          const std::string& output_name) {
+    std::shared_ptr<INode> node(new SparseConvolution(name, x, weight, weight_shape));
+    nodes_.push_back(node);
+    return node.get();
+  }
 
-  virtual INode* push_reshape(
-      const std::string& name, ITensor* x, 
-      const std::vector<int64_t>& shape,
-      const std::string& output_name) = 0;
+  INode* push_add(const std::string& name, SparseDTensor* a, SparseDTensor* b, float a_dynamic_range, float b_dynamic_range,
+                  const std::string& output_name, Precision precision, Precision output_precision) {
+    std::shared_ptr<INode> node(new Add(name, a, b, a_dynamic_range, b_dynamic_range, output_name, precision, output_precision));
+    nodes_.push_back(node);
+    return node.get();
+  }
 
-  virtual INode* push_transpose(
-      const std::string& name, ITensor* x, 
-      const std::vector<int64_t>& dims,
-      const std::string& output_name) = 0;
+  INode* push_relu(const std::string& name, SparseDTensor* x, const std::string& output_name) {
+    std::shared_ptr<INode> node(new Relu(name, x, output_name));
+    nodes_.push_back(node);
+    return node.get();
+  }
 
-  virtual INode* push_sparse_conv(
-      const std::string& name, 
-      ITensor* x,
-      const std::vector<unsigned short>& weight,
-      const std::vector<int>& weight_shape,
-      const std::vector<float>& weight_dynamic_ranges,
-      const std::vector<unsigned short>& bias,
-      const std::vector<int>& bias_shape,
-      const std::string& activation,
-      const std::vector<int>& kernel_size,
-      const std::vector<int>& stride,
-      const std::vector<int>& padding,
-      const std::vector<int>& dilation,
-      float input_dynamic_range,
-      bool submanifold,
-      int max_output_points,
-      const std::string& rulebook,
-      Precision precision,
-      Precision output_precision,
-      const std::string& output_name) = 0;
+  INode* push_dense(const std::string& name, SparseDTensor* x, const std::string& format, const std::string& output_name, 
+                            const std::vector<int>& input_spatial_shape, const std::vector<int>& output_shape) {
+    std::shared_ptr<INode> node(new Dense(name, x, format, output_name, input_spatial_shape, output_shape));
+    nodes_.push_back(node);
+    return node.get();
+  }
 
-  virtual void push_output(ITensor* value) = 0;
+  INode* push_reshape(const std::string& name, SparseDTensor* x, const std::vector<int64_t>& shape, const std::string& output_name) {
+    std::shared_ptr<INode> node(new Reshape(name, x, shape, output_name));
+    nodes_.push_back(node);
+    return node.get();
+  }
 
-  // build engine
-  virtual std::shared_ptr<Engine> build(Precision precision, void* stream = nullptr) = 0;
+  INode* push_transpose(const std::string& name, SparseDTensor* x, const std::vector<int64_t>& dims, const std::string& output_name) {
+    std::shared_ptr<INode> node(new Transpose(name, x, dims, output_name));
+    nodes_.push_back(node);
+    return node.get();
+  }
+
+  void push_output(SparseDTensor* value) { 
+    std::shared_ptr<SparseDTensor> sptr(value);
+    outputs_.push_back(sptr);
+  }
+
+  std::shared_ptr<Engine> build(Precision precision, void* stream = nullptr) {
+    engine_.reset(new Engine(inputs_, outputs_, nodes_));
+    return engine_;
+  }
+
+ private:
+  std::vector<std::shared_ptr<SparseDTensor>> inputs_;
+  std::vector<std::shared_ptr<SparseDTensor>> outputs_;
+
+  std::vector<std::shared_ptr<INode>> nodes_;
+  std::shared_ptr<Engine> engine_ = nullptr;
 };
 
 /**
  * To build a engine.
 */
-std::shared_ptr<EngineBuilder> create_engine_builder();
+inline std::shared_ptr<EngineBuilder> create_engine_builder() {
+  std::shared_ptr<EngineBuilder> instance(new EngineBuilder());
+  instance->init();
+  return instance;
+}
 
 /**
   Enable detailed information output
@@ -173,9 +178,11 @@ std::shared_ptr<EngineBuilder> create_engine_builder();
   enable: You should set this to true if you want to debug the model inference process. default:
   false
 */
-Exported void set_verbose(bool enable);
-Exported bool get_verbose();
-Exported const char* get_precision_string(Precision precision);
+inline void set_verbose(bool enable) {}
+inline bool get_verbose() {}
+inline const char* get_precision_string(Precision precision) {}
+
+
 
 };  // namespace spconv
 

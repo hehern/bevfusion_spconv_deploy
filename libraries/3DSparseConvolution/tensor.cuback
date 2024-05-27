@@ -1,0 +1,297 @@
+#include "tensor.hpp"
+
+namespace spconv {
+
+const char* dtype_string(DataType dtype) {
+  switch (dtype) {
+    case DataType::Float32:
+      return "Float32";
+    case DataType::Float16:
+      return "Float16";
+    case DataType::Int32:
+      return "Int32";
+    case DataType::Int64:
+      return "Int64";
+    case DataType::UInt64:
+      return "UInt64";
+    case DataType::UInt32:
+      return "UInt32";
+    case DataType::Int8:
+      return "Int8";
+    case DataType::UInt8:
+      return "UInt8";
+    case DataType::Int16:
+      return "Int16";
+    case DataType::UInt16:
+      return "UInt16";
+    default:
+      return "Unknow";
+  }
+}
+
+size_t dtype_bytes(DataType dtype) {
+  switch (dtype) {
+    case DataType::Float32:
+      return sizeof(float);
+    case DataType::Float16:
+      return sizeof(unsigned short);
+    case DataType::Int32:
+      return sizeof(int);
+    case DataType::Int64:
+      return sizeof(int64_t);
+    case DataType::UInt64:
+      return sizeof(uint64_t);
+    case DataType::UInt32:
+      return sizeof(unsigned int);
+    case DataType::Int8:
+      return sizeof(char);
+    case DataType::UInt8:
+      return sizeof(unsigned char);
+    case DataType::Int16:
+      return sizeof(short);
+    case DataType::UInt16:
+      return sizeof(unsigned short);
+    default:
+      return 0ul;
+  }
+}
+
+template <>
+std::string format_shape(const std::vector<int64_t>& shape) {
+  char buf[200] = {0};
+  char* p = buf;
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (i + 1 < shape.size())
+      p += sprintf(p, "%ld x ", shape[i]);
+    else
+      p += sprintf(p, "%ld", shape[i]);
+  }
+  return buf;
+}
+
+template <>
+std::string format_shape(const std::vector<int>& shape) {
+  char buf[200] = {0};
+  char* p = buf;
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (i + 1 < shape.size())
+      p += sprintf(p, "%d x ", shape[i]);
+    else
+      p += sprintf(p, "%d", shape[i]);
+  }
+  return buf;
+}
+
+
+// TensorData
+void TensorData::reference(void *data, size_t bytes, DataType dtype, bool device) {
+  TensorData::free();
+  this->owner = false;
+  this->data = data;
+  this->dtype = dtype;
+  this->bytes = bytes;
+  this->device = device;
+}
+void TensorData::free() {
+  if (data && owner) {
+    if (device) {
+      checkRuntime(cudaFree(data));
+    } else {
+      checkRuntime(cudaFreeHost(data));
+    }
+  }
+  data = nullptr;
+  owner = false;
+  bytes = 0;
+  dtype = DataType::None;
+  device = false;
+}
+TensorData::~TensorData() { TensorData::free(); }
+TensorData* TensorData::reference_new(void *data, size_t bytes, DataType dtype, bool device) {
+  TensorData* output = new TensorData();
+  output->owner = false;
+  output->data = data;
+  output->dtype = dtype;
+  output->bytes = bytes;
+  output->device = device;
+  return output;
+}
+TensorData* TensorData::create(size_t bytes, DataType dtype, bool device) {
+  TensorData* output = new TensorData();
+  output->owner = true;
+  output->dtype = dtype;
+  output->bytes = bytes;
+  output->device = device;
+
+  if (device)
+    checkRuntime(cudaMalloc(&output->data, bytes));
+  else
+    checkRuntime(cudaMallocHost(&output->data, bytes));
+  return output;
+}
+
+
+// Tensor
+void Tensor::reference(void *data, std::vector<int64_t> shape, DataType dtype, bool device = true) {
+  this->shape = shape;
+  this->numel = shape[0];
+  this->ndim = shape[1];
+  this->data = std::make_shared<TensorData>();
+  this->data->reference(data, shape[0]*shape[1], dtype, device);
+
+}
+void Tensor::to_device_(void *stream = nullptr) {
+  cudaStream_t stream = (cudaStream_t)stream_;
+  if (!this->device() && !this->empty()) {
+    shared_ptr<TensorData> newdata(TensorData::create(this->bytes(), this->dtype(), true));
+    checkRuntime(cudaMemcpyAsync(newdata->data, this->ptr(), this->bytes(), cudaMemcpyHostToDevice, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    this->data = newdata;
+  }
+}
+void Tensor::to_host_(void *stream = nullptr) {
+  cudaStream_t stream = (cudaStream_t)stream_;
+  if (this->device() && !this->empty()) {
+    shared_ptr<TensorData> newdata(TensorData::create(this->bytes(), this->dtype(), false));
+    checkRuntime(cudaMemcpyAsync(newdata->data, this->ptr(), this->bytes(), cudaMemcpyDeviceToHost, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    this->data = newdata;
+  }
+}
+Tensor Tensor::to_device(void *stream = nullptr) const {
+  if (!this->device() && !this->empty()) {
+    cudaStream_t stream = (cudaStream_t)stream_;
+    Tensor output(shape, this->dtype(), true);
+    checkRuntime(cudaMemcpyAsync(output.ptr(), this->ptr(), this->bytes(), cudaMemcpyHostToDevice, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    return output;
+  }
+  return *this;
+}
+Tensor Tensor::to_host(void *stream = nullptr) const {
+  if (this->device() && !this->empty()) {
+    cudaStream_t stream = (cudaStream_t)stream_;
+    Tensor output(shape, this->dtype(), false);
+    checkRuntime(cudaMemcpyAsync(output.ptr(), this->ptr(), this->bytes(), cudaMemcpyDeviceToHost, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    return output;
+  }
+  return *this;
+}
+Tensor Tensor::clone(void *stream = nullptr) const {
+  Tensor output = *this;
+  cudaStream_t stream = (cudaStream_t)_stream;
+  if (this->device() && !this->empty()) {
+    shared_ptr<TensorData> newdata(TensorData::create(this->bytes(), this->dtype(), true));
+    checkRuntime(cudaMemcpyAsync(newdata->data, this->ptr(), this->bytes(), cudaMemcpyDeviceToDevice, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    output.data = newdata;
+  } else if (!this->device() && !this->empty()) {
+    shared_ptr<TensorData> newdata(TensorData::create(this->bytes(), this->dtype(), false));
+    checkRuntime(cudaMemcpyAsync(newdata->data, this->ptr(), this->bytes(), cudaMemcpyHostToHost, stream));
+    checkRuntime(cudaStreamSynchronize(stream));
+    output.data = newdata;
+  }
+  return output;
+}
+Tensor Tensor::to_half(void *stream = nullptr) const {
+  Tensor output;
+  cudaStream_t stream = (cudaStream_t)_stream;
+
+  if (this->empty()) return output;
+  if (this->dtype() == DataType::Float16) return this->clone(stream);
+  if (!this->device()) {
+    printf("Unsupport non device convertion.\n");
+    return output;
+  }
+  output = Tensor::create(this->shape, DataType::Float16);
+
+  DISPATCH_BY_TYPES(this->dtype(), [&] {
+    cuda_linear_launch(any_to_any_device, stream, this->numel, this->ptr<scalar_t>(), output.ptr<half>());
+    checkRuntime(cudaStreamSynchronize(stream));
+  });
+  return output;
+}
+void Tensor::print(const std::string &prefix = "Tensor", size_t offset = 0, size_t num_per_line = 10, size_t lines = 1, void* stream = nullptr) const {
+  printf("%s[%s] %s%s", prefix, dtype_string(dtype()), format_shape(shape).c_str(), lines == 1 ? ": " : ": \n");
+
+  if (this->empty()) {
+    printf("empty.\n");
+    return;
+  }
+
+  shared_ptr<TensorData> tensor_data = this->data;
+  if (this->device()) {
+    tensor_data = shared_ptr<TensorData>(TensorData::create(this->bytes(), this->dtype(), false));
+    checkRuntime(cudaMemcpy(tensor_data->data, this->ptr(), this->bytes(), cudaMemcpyDeviceToHost));
+  }
+
+  size_t num_print = min(lines * num_per_line, numel);
+  if (this->dtype() == DataType::Float32) {
+    for (size_t i = 0; i < num_print; ++i) {
+      printf("%.3f ", *((float*)tensor_data->data + offset + i));
+      if ((i + 1) % num_per_line == 0) printf("\n");
+    }
+  } else if (this->dtype() == DataType::Float16) {
+    for (size_t i = 0; i < num_print; ++i) {
+      printf("%.3f ", _native_half2float(*((unsigned short*)tensor_data->data + offset + i)));
+      if ((i + 1) % num_per_line == 0) printf("\n");
+    }
+  } else if (this->dtype() == DataType::Int32 || this->dtype() == DataType::UInt32) {
+    for (size_t i = 0; i < num_print; ++i) {
+      printf("%d ", *((int*)tensor_data->data + offset + i));
+      if ((i + 1) % num_per_line == 0) printf("\n");
+    }
+  } else if (this->dtype() == DataType::Int64 || this->dtype() == DataType::UInt64) {
+    for (size_t i = 0; i < num_print; ++i) {
+      printf("%ld ", *((int64_t*)tensor_data->data + offset + i));
+      if ((i + 1) % num_per_line == 0) printf("\n");
+    }
+  } else if (this->dtype() == DataType::Int16 || this->dtype() == DataType::UInt16) {
+    for (size_t i = 0; i < num_print; ++i) {
+      printf("%d ", *((short*)tensor_data->data + offset + i));
+      if ((i + 1) % num_per_line == 0) printf("\n");
+    }
+  }
+  if (num_print % num_per_line != 0) printf("\n");
+}
+void Tensor::memset(unsigned char value = 0, void *stream = nullptr) {}
+void Tensor::arange(size_t num, void *stream = nullptr) {}
+bool Tensor::save(const std::string &file, void *stream = nullptr) const {}
+void Tensor::create_(const std::vector<int64_t> &shape, DataType dtype, bool device = true) {}
+
+Tensor::Tensor(std::vector<int64_t> shape, DataType dtype, bool device = true) {
+  size_t volumn = std::accumulate(shape.begin(), shape.begin() + shape.size(), 1, std::multiplies<int>());
+  size_t bytes = volumn * dtype_bytes(dtype);
+  this->shape = shape;
+  this->numel = volumn;
+  this->ndim = shape.size();
+  this->data.reset(TensorData::create(bytes, dtype, device));
+}
+
+static Tensor Tensor::create(std::vector<int64_t> shape, DataType dtype, bool device = true) {}
+static Tensor Tensor::create(std::vector<int32_t> shape, DataType dtype, bool device = true) {}
+static Tensor Tensor::from_data(void *data, std::vector<int64_t> shape, DataType dtype,
+                                bool device = true, void *stream = nullptr) {
+
+}
+static Tensor Tensor::from_data(void *data, std::vector<int32_t> shape, DataType dtype,
+                                bool device = true, void *stream = nullptr) {
+
+}
+static Tensor Tensor::from_data_reference(void *data, std::vector<int64_t> shape, DataType dtype,
+                                          bool device = true) {
+
+}
+static Tensor Tensor::load(const std::string &file, bool device = true, void* stream = nullptr) {
+
+}
+static Tensor Tensor::load_from_raw(const std::string &file, std::vector<int64_t> shape,
+                                    DataType dtype, bool device = true, void* stream = nullptr) {
+
+}
+static bool Tensor::save(const Tensor &tensor, const std::string &file, void *stream = nullptr) {
+
+}
+
+} // namespace spconv

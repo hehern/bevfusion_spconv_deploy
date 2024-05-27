@@ -155,7 +155,7 @@ static __global__ void voxelization_kernel(size_t points_size, const half *point
 
     // now only deal with batch_size = 1
     // since not sure what the input format will be if batch size > 1
-    save_result_by_order<order>(&((uint4 *)voxel_indices)[voxel_id], voxel_idx, voxel_idy, voxel_idz);//将当前voxel的坐标保存下来到voxel_indices中,多个点对应同一个voxel的话，会被反复赋值多次
+    save_result_by_order<order>(&((uint4 *)voxel_indices)[voxel_id], voxel_idx, voxel_idy, voxel_idz);//将当前voxel的坐标保存下来到voxel_indices中,保存为uint4[0, x, y, z],多个点对应同一个voxel的话，会被反复赋值多次
   }
 }
 
@@ -256,17 +256,17 @@ class VoxelizationImplement : public Voxelization {
                        param_.num_feature, d_voxel_features_);//将voxels_temp_中的点特征按照维度求平均，保存在d_voxel_features_中
   }
 
-  virtual unsigned int num_voxels() override { return real_num_voxels_; }
+  virtual unsigned int num_voxels() override { return real_num_voxels_; }//非空体素栅格个数
 
-  virtual unsigned int voxel_dim() override { return param_.num_feature; }
+  virtual unsigned int voxel_dim() override { return param_.num_feature; }//体素特征维度:5,xyzi?
 
-  virtual unsigned int indices_dim() override { return 4; }
+  virtual unsigned int indices_dim() override { return 4; }//batch x y z
 
-  virtual std::vector<int> grid_size() override { return output_grid_size_; }
+  virtual std::vector<int> grid_size() override { return output_grid_size_; }//[1440, 1440, 41]
 
-  virtual const void *indices() override { return d_voxel_indices_; }
+  virtual const void *indices() override { return d_voxel_indices_; }//每个voxel的坐标(indice),uint4*real_num_voxels_,保存在cuda上
 
-  virtual const void *features() override { return d_voxel_features_; }
+  virtual const void *features() override { return d_voxel_features_; }//有效voxel特征，5*real_num_voxels_，保存在cuda上
 
   virtual CoordinateOrder order() override { return order_; }
 
@@ -282,7 +282,7 @@ class VoxelizationImplement : public Voxelization {
   unsigned int *h_real_num_voxels_ = nullptr;//cpu上的变量，存储的是有效voxel的个数，为啥用指针啊？
   unsigned int *d_voxel_num_ = nullptr;//每个voxel中的点的个数
   half *d_voxel_features_ = nullptr;//voxel特征(voxel内的所有点求平均之后的)
-  unsigned int *d_voxel_indices_ = nullptr;//保存每个voxel的坐标(indice)
+  unsigned int *d_voxel_indices_ = nullptr;//保存每个voxel的坐标(indice)，uint4*real_num_voxels_
   unsigned int hash_table_size_;
   unsigned int voxels_temp_size_;
   unsigned int voxel_features_size_;

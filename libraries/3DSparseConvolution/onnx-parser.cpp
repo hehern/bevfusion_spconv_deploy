@@ -24,7 +24,6 @@
 #include "onnx-parser.hpp"
 #include "onnx/onnx-ml.pb.h"
 #include "onnx/onnx-operators-ml.pb.h"
-#include "engine.hpp"
 #include <fstream>
 #include <numeric>
 #include <unordered_map>
@@ -110,13 +109,13 @@ std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Prec
     auto builder = spconv::create_engine_builder();//?
     auto graph = model.graph();//graph，包含输入张量信息、输出张量信息、节点信息
     
-    std::unordered_map<std::string, spconv::ITensor*> tensor_map_by_name;//输入、输出tensor map
+    std::unordered_map<std::string, spconv::SparseDTensor*> tensor_map_by_name;//输入、输出tensor map
     for (int i = 0; i < graph.input_size(); ++i) {//遍历所有的输入张量,对于scn来讲输入只有一个
         auto name = graph.input(i).name();
         tensor_map_by_name[name] = builder->push_input(name);
     }
 
-    std::vector<spconv::ITensor*> collect_outputs;
+    std::vector<spconv::SparseDTensor*> collect_outputs;
     for (int i = 0; i < model.graph().node_size(); ++i) {//遍历所有的node，有conv add relu等
         auto& node = model.graph().node(i);//取当前node
         if (node.op_type() == "SparseConvolution") {//是稀疏卷积（注意有两种稀疏卷积，type都是SparseConvolution，rulebook命名时候不一样）

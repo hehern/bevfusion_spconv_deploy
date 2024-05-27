@@ -24,7 +24,7 @@
 #ifndef ONNX_PARSER_HPP
 #define ONNX_PARSER_HPP
 
-#include <spconv/engine.hpp>
+#include "engine.hpp"
 
 namespace spconv{
 

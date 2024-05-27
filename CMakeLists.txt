@@ -52,7 +52,8 @@ include_directories(
   dependencies/stb
   dependencies/pybind11/include
   libraries/cuOSD/src
-  libraries/3DSparseConvolution/libspconv/include
+  libraries/3DSparseConvolution
+  libraries/3DSparseConvolution/onnx
   src/common
   src/
 )
@@ -60,12 +61,14 @@ include_directories(
 link_directories(
   $ENV{CUDA_Lib}
   $ENV{TensorRT_Lib}
-  libraries/3DSparseConvolution/libspconv/lib/${arch}
   build
   $ENV{Python_Lib}
 )
 
 file(GLOB_RECURSE CORE_FILES 
+  libraries/3DSparseConvolution/*.cpp
+  libraries/3DSparseConvolution/onnx/*.cpp
+  libraries/3DSparseConvolution/onnx/*.cc
   src/bevfusion/*.cu 
   src/bevfusion/*.cpp
   src/common/tensor.cu
@@ -87,7 +90,6 @@ target_link_libraries(bevfusion_core
   libcudart.so
   libcublasLt.so
   libnvinfer.so
-  libspconv.so
   ${Protobuf_LIBRARIES}
   libnvinfer_plugin.so
 )
@@ -103,7 +105,6 @@ cuda_add_executable(bevfusion
 target_link_libraries(bevfusion
   bevfusion_core
   libnvinfer.so
-  libspconv.so
   ${Protobuf_LIBRARIES}
   libnvinfer_plugin.so
 )
@@ -119,7 +120,6 @@ if(${CMAKE_BUILD_PYTHON} STREQUAL "ON")
   target_link_libraries(pybev
     bevfusion_core
     libnvinfer.so
-    libspconv.so
     ${Protobuf_LIBRARIES}
     libnvinfer_plugin.so
     $ENV{Python_Soname}
