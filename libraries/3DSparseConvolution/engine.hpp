@@ -68,7 +68,8 @@ class Engine {
     for(int i=0; i<nodes_.size(); i++) {
       nodes_[i]->set_is_computed(false);
     }
-    inputs_[0]->set_data(features_shape, features_dtype, features_data, indices_shape, indices_dtype, indices_data, grid_size);
+    SparseDTensor::clear_rulebooks();
+    inputs_[0]->set_data(features_shape, features_dtype, features_data, indices_shape, indices_dtype, indices_data, grid_size, stream);
     outputs_[0]->update();
   }
   size_t num_input() const { return inputs_.size(); }
@@ -108,7 +109,8 @@ class EngineBuilder{
                           int max_output_points,const std::string& rulebook,
                           Precision precision, Precision output_precision,
                           const std::string& output_name) {
-    std::shared_ptr<INode> node(new SparseConvolution(name, x, weight, weight_shape));
+    std::shared_ptr<INode> node(new SparseConvolution(name, x, weight, weight_shape, weight_dynamic_ranges, bias, bias_shape, activation,
+    kernel_size, stride, padding, dilation, input_dynamic_range, submanifold, max_output_points, rulebook, precision, output_precision, output_name));
     nodes_.push_back(node);
     return node.get();
   }
