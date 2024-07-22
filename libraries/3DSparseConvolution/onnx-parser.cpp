@@ -201,6 +201,6 @@ std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Prec
     for (int i = 0; i < collect_outputs.size(); ++i) {
         builder->push_output(collect_outputs[i]);
     }
-    return builder->build(precision, stream);
+    return builder->build(precision, stream);//生成Engine并返回
 }
 };

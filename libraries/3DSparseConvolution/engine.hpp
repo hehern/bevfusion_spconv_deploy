@@ -33,6 +33,12 @@
 #include <algorithm>
 
 #include "node.hpp"
+#include "node_add.hpp"
+#include "node_dense.hpp"
+#include "node_relu.hpp"
+#include "node_reshape.hpp"
+#include "node_transpose.hpp"
+#include "node_sparseconv.hpp"
 
 
 namespace spconv {

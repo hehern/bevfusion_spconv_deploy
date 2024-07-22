@@ -4,7 +4,7 @@
 #include <iostream>
 #include <map>
 #include "node.hpp"
-#include "../../src/common/tensor.hpp"
+#include "tensor.hpp"
 
 namespace spconv {
 
@@ -44,8 +44,8 @@ class SparseDTensor {
   nv::Tensor features_;
   nv::Tensor indices_;
   std::vector<int64_t> features_shape_;//{valid_num_voxels = n, voxel_dim = 5}
-  std::vector<int64_t> indices_shape_;//{valid_num_indices = n, indices_dim = 4}
-  std::vector<int> grid_size_;
+  std::vector<int64_t> indices_shape_;//{valid_num_indices = n, indices_dim = 4(batch,x,y,z)}
+  std::vector<int> grid_size_;//1440 1440 41
 
   std::string name_;
   INode* parent_;

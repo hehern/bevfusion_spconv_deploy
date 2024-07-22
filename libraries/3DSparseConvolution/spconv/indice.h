@@ -14,28 +14,28 @@
 
 #ifndef SPARSE_CONV_INDICE_FUNCTOR_H_
 #define SPARSE_CONV_INDICE_FUNCTOR_H_
-#include "../../../src/common/tensor.hpp"
+#include "tensor.hpp"
 // #include <tensorview/tensorview.h>
 // #include <torch/script.h>
 
 namespace spconv {
-int create_conv_indice_pair_p1_cuda(
-    torch::Tensor indicesIn, torch::Tensor indicePairs, torch::Tensor indiceNum,
-    torch::Tensor indicePairUnique, std::vector<int64_t> kernelSize,
-    std::vector<int64_t> stride, std::vector<int64_t> padding,
-    std::vector<int64_t> dilation, std::vector<int64_t> outSpatialShape);
+// int create_conv_indice_pair_p1_cuda(
+//     nv::Tensor indicesIn, nv::Tensor indicePairs, nv::Tensor indiceNum,
+//     nv::Tensor indicePairUnique, std::vector<int64_t> kernelSize,
+//     std::vector<int64_t> stride, std::vector<int64_t> padding,
+//     std::vector<int64_t> dilation, std::vector<int64_t> outSpatialShape);
 
-int create_conv_indice_pair_p2_cuda(
-    torch::Tensor indicesIn, torch::Tensor indicesOut, torch::Tensor gridsOut,
-    torch::Tensor indicePairs, torch::Tensor indiceNum,
-    torch::Tensor indicePairUnique, std::vector<int64_t> outSpatialShape,
-    bool resetGrid, bool useHash);
+// int create_conv_indice_pair_p2_cuda(
+//     nv::Tensor indicesIn, nv::Tensor indicesOut, nv::Tensor gridsOut,
+//     nv::Tensor indicePairs, nv::Tensor indiceNum,
+//     nv::Tensor indicePairUnique, std::vector<int64_t> outSpatialShape,
+//     bool resetGrid, bool useHash);
 
 int create_submconv_indice_pair_cuda(
     nv::Tensor indicesIn, nv::Tensor gridsOut, nv::Tensor indicePairs,
-    nv::Tensor indiceNum, std::vector<int64_t> kernelSize,
-    std::vector<int64_t> stride, std::vector<int64_t> padding,
-    std::vector<int64_t> dilation, std::vector<int64_t> outSpatialShape,
+    nv::Tensor indiceNum, std::vector<int> kernelSize,
+    std::vector<int> stride, std::vector<int> padding,
+    std::vector<int> dilation, std::vector<int> outSpatialShape,
     bool resetGrid, bool useHash);
 
 

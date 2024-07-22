@@ -15,10 +15,10 @@
 #ifndef SPARSE_CONV_OP_H_
 #define SPARSE_CONV_OP_H_
 
-#include "../../../src/common/tensor.hpp"
+#include "tensor.hpp"
 #include "tensorview/common.h"
 #include "indice.h"
-#include "reordering.h"
+// #include "reordering.h"
 // #include <tensorview/torch_utils.h>
 // #include <torch/script.h>
 // #include <utility/timer.h>
@@ -28,16 +28,16 @@ namespace spconv {
 
 std::vector<nv::Tensor>
 getIndicePairs(nv::Tensor indices,
-               std::vector<int64_t> outSpatialShape,
-               std::vector<int64_t> spatialShape,
-               std::vector<int64_t> kernelSize, std::vector<int64_t> stride,
-               std::vector<int64_t> padding, std::vector<int64_t> dilation,
+               std::vector<int> outSpatialShape,
+               std::vector<int> spatialShape,
+               std::vector<int> kernelSize, std::vector<int> stride,
+               std::vector<int> padding, std::vector<int> dilation,
                bool subM);
 
-nv::Tensor indiceConv(nv::Tensor features, nv::Tensor filters,
-                      nv::Tensor indicePairs, nv::Tensor indiceNum,
-                      int64_t numActOut, int64_t _inverse, int64_t _subM,
-                      int64_t algo);
+// nv::Tensor indiceConv(nv::Tensor features, nv::Tensor filters,
+//                       nv::Tensor indicePairs, nv::Tensor indiceNum,
+//                       int64_t numActOut, int64_t _inverse, int64_t _subM,
+//                       int64_t algo);
 
 } // namespace spconv
 #endif

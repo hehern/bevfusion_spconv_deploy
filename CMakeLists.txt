@@ -53,7 +53,6 @@ include_directories(
   dependencies/pybind11/include
   libraries/cuOSD/src
   libraries/3DSparseConvolution
-  libraries/3DSparseConvolution/onnx
   src/common
   src/
 )
@@ -69,6 +68,8 @@ file(GLOB_RECURSE CORE_FILES
   libraries/3DSparseConvolution/*.cpp
   libraries/3DSparseConvolution/onnx/*.cpp
   libraries/3DSparseConvolution/onnx/*.cc
+  libraries/3DSparseConvolution/spconv/*.cu
+  libraries/3DSparseConvolution/spconv/*.cpp
   src/bevfusion/*.cu 
   src/bevfusion/*.cpp
   src/common/tensor.cu

@@ -9,10 +9,9 @@ SparseDTensor::SparseDTensor(std::string name, INode* parent) {
 }
 
 void SparseDTensor::set_data(
-  const std::vector<int64_t>& features_shape,
-  nv::DataType features_dtype, void* features_data,
-  const std::vector<int64_t>& indices_shape, nv::DataType indices_dtype,
-  void* indices_data, std::vector<int> grid_size, void *stream) {
+  const std::vector<int64_t>& features_shape, nv::DataType features_dtype, void* features_data,
+  const std::vector<int64_t>& indices_shape, nv::DataType indices_dtype, void* indices_data, 
+  std::vector<int> grid_size, void *stream) {
     // std::cout << "SparseDTensor name = " << name_ << ", set data begin:" << std::endl;
 
     // std::cout << "num_voxels = " << features_shape[0] << ", voxel_dim = " << features_shape[1] << std::endl;
