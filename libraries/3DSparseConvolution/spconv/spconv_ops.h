@@ -32,7 +32,7 @@ getIndicePairs(nv::Tensor indices,
                std::vector<int> spatialShape,
                std::vector<int> kernelSize, std::vector<int> stride,
                std::vector<int> padding, std::vector<int> dilation,
-               bool subM);
+               bool subM, void* stream);
 
 // nv::Tensor indiceConv(nv::Tensor features, nv::Tensor filters,
 //                       nv::Tensor indicePairs, nv::Tensor indiceNum,

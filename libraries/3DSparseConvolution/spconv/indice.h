@@ -34,7 +34,7 @@ namespace spconv {
 int create_submconv_indice_pair_cuda(
     nv::Tensor indicesIn, nv::Tensor gridsOut, nv::Tensor indicePairs,
     nv::Tensor indiceNum, nv::Tensor outSpatialShape,
-    bool resetGrid, bool useHash, void* stream);
+    void* stream);
 
 
 } // namespace spconv

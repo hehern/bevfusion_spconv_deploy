@@ -1,3 +1,4 @@
+#include <limits>
 #include "spconv_ops.h"
 namespace spconv {
 
@@ -40,20 +41,21 @@ getIndicePairs(nv::Tensor indices,
                     "include batch size ";
   msg += "must less than std::numeric_limits<int>::max() = 2e9";
   TV_ASSERT_RT_ERR(outputVolume < std::numeric_limits<int>::max(), msg);
-  nv::Tensor indicePairs = nv::Tensor::create({2, kernelVolume, numAct}, nv::DataType::Int32);//shape:{2,27,n}
+  nv::Tensor indicePairs = nv::Tensor::create(std::vector<int32_t>{2, kernelVolume, numAct}, nv::DataType::Int32);//shape:{2,27,n}
   indicePairs.memset(-1);
-  nv::Tensor indiceNum = nv::Tensor::create({kernelVolume}, nv::DataType::Int32);//shape:{27}
+  nv::Tensor indiceNum = nv::Tensor::create(std::vector<int32_t>{kernelVolume}, nv::DataType::Int32);//shape:{27}
   indiceNum.memset(0);
-  nv::Tensor gridOut = nv::Tensor::create({outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
+  nv::Tensor gridOut = nv::Tensor::create(std::vector<int32_t>{outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
   gridOut.memset(-1);
-  nv::Tensor ou = nv::Tensor::create({NDim}, nv::DataType::Int32);//输出tensor，展平为1维的
-  int ou_host[3] = {outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]};
-  ou.copy_from_host(ou_host);
+  nv::Tensor ou = nv::Tensor::create(std::vector<int32_t>{NDim}, nv::DataType::Int32);//输出tensor，展平为1维的
+  ou.at<int>(0) = outSpatialShape[0];
+  ou.at<int>(1) = outSpatialShape[1];
+  ou.at<int>(2) = outSpatialShape[2];
 
   // 参考资料：https://zhuanlan.zhihu.com/p/383299678
   int64_t numActOut = -1;//如果subM类型的spconv，输出actnum和输入actnum是一致的，如果subM为false，则需要计算
   if (subM) {
-    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, false, useHash, stream);
+    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, stream);
     return {indices, indicePairs, indiceNum};
   } else {
     // auto indicePairUnique = torch::full({indicePairs.numel() / 2 + 1}, std::numeric_limits<int>::max(), torch::dtype(torch::kInt32).device(indices.device()));
