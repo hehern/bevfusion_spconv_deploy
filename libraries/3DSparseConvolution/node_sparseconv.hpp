@@ -20,10 +20,7 @@ class SparseConvolution : public INode {
                     Precision precision, Precision output_precision,
                     const std::string& output_name);
 
-  void forward() override;
-  std::vector<int> get_conv_output_size(const std::vector<int>& input_size, const std::vector<int>& kernel_size, 
-                                        const std::vector<int>& stride, const std::vector<int>& padding, 
-                                        const std::vector<int>& dilation);
+  void forward(void *stream) override;
 
  private:
   unsigned short ndim = 3;
@@ -46,7 +43,7 @@ class SparseConvolution : public INode {
   std::string rulebook_;
   Precision precision_;
   Precision output_precision_;
-  // 需要根据输入实时计算的参数，可以优化到构造函数中，因为spatial_shape部署上车之后是固定的，可以不计算从onnx中读
+  std::vector<int> input_spatial_shape_;
   std::vector<int> out_spatial_shape_;
 };
 

@@ -33,9 +33,9 @@ void SparseDTensor::set_data(
 
 }
 
-void SparseDTensor::update() {
+void SparseDTensor::update(void *stream) {
   if (parent_ != nullptr) {
-    parent_->update();
+    parent_->update(stream);
   }
 }
 

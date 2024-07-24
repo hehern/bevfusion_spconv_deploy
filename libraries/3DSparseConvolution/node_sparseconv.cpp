@@ -35,40 +35,21 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   rulebook_ = rulebook;
   precision_ = precision;
   output_precision_ = output_precision;
+  input_spatial_shape_ = x->grid_size();
+  out_spatial_shape_ = output_->grid_size();
 }
 
-void SparseConvolution::forward() {
-  // 计算输出维度
-  if(!submanifold_) {
-    out_spatial_shape_ = get_conv_output_size(input_[0]->grid_size(), kernel_size_, stride_, padding_, dilation_);
-  } else {
-    out_spatial_shape_ = input_[0]->grid_size();
-  }
-  // 查找/计算rulebook
+void SparseConvolution::forward(void *stream) {
+  // step1:查找/计算rulebook
   std::vector<nv::Tensor> datas = SparseDTensor::find_indice_pair(rulebook_);
   if (datas.empty()) {
     // std::cout << "no rulebook" << std::endl;
-    datas = getIndicePairs(input_[0]->indices(), out_spatial_shape_, input_[0]->grid_size(), kernel_size_, stride_, padding_, dilation_, submanifold_);
+    datas = getIndicePairs(input_[0]->indices(), out_spatial_shape_, input_spatial_shape_, kernel_size_, stride_, padding_, dilation_, submanifold_, stream);
     SparseDTensor::add_rulebook(rulebook_, datas);
   }
-  // 保存输出
+  // step2:保存输出
   // output_->set_data();
   std::cout << name_ << ", forward done!" << std::endl;
-}
-
-std::vector<int> SparseConvolution::get_conv_output_size(const std::vector<int>& input_size, const std::vector<int>& kernel_size, 
-                                                         const std::vector<int>& stride, const std::vector<int>& padding, 
-                                                         const std::vector<int>& dilation) {
-  std::vector<int> output_size;
-  for (unsigned short i=0; i<ndim; i++) {
-    unsigned short size = (input_size[i] + 2 * padding[i] - dilation[i] * (kernel_size[i] - 1) - 1) / stride[i] + 1;
-    if (kernel_size[i] == -1) {
-      output_size[i] = 1;
-    } else {
-      output_size[i] = size;
-    }
-  }
-  return output_size;
 }
 
 }// namespace spconv

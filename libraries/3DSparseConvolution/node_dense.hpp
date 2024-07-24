@@ -12,7 +12,7 @@ class Dense : public INode {
   Dense(const std::string& name, SparseDTensor* x, const std::string& format, const std::string& output_name, 
         const std::vector<int>& input_spatial_shape, const std::vector<int>& output_shape);
 
-  void forward() override {
+  void forward(void *stream) override {
     //
     std::cout << name_ << ", forward done!" << std::endl;
   }

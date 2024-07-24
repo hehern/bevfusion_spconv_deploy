@@ -18,8 +18,8 @@ class INode{
   unsigned int num_input() { return 1; }
   void set_is_computed(bool flag) { is_computed = flag; }
 
-  virtual void forward() = 0;
-  void update();
+  virtual void forward(void *stream) = 0;
+  void update(void *stream);
 
  public:
   std::vector<SparseDTensor*> input_;

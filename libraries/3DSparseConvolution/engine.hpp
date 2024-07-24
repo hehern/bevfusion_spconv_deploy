@@ -76,7 +76,7 @@ class Engine {
     }
     SparseDTensor::clear_rulebooks();
     inputs_[0]->set_data(features_shape, features_dtype, features_data, indices_shape, indices_dtype, indices_data, grid_size, stream);
-    outputs_[0]->update();
+    outputs_[0]->update(stream);
   }
   size_t num_input() const { return inputs_.size(); }
   size_t num_output() const {return outputs_.size(); }

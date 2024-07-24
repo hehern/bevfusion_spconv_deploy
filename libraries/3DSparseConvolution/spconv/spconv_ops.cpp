@@ -16,7 +16,7 @@ getIndicePairs(nv::Tensor indices,
                std::vector<int> spatialShape,
                std::vector<int> kernelSize, std::vector<int> stride,
                std::vector<int> padding, std::vector<int> dilation,
-               bool subM) {
+               bool subM, void* stream) {
   auto NDim = kernelSize.size();//3
   bool useHash = false;
   auto numAct = indices.shape[0];
@@ -44,14 +44,16 @@ getIndicePairs(nv::Tensor indices,
   indicePairs.memset(-1);
   nv::Tensor indiceNum = nv::Tensor::create({kernelVolume}, nv::DataType::Int32);//shape:{27}
   indiceNum.memset(0);
-
-  auto gridSize = outputVolume;
-  nv::Tensor gridOut = nv::Tensor::create({gridSize}, nv::DataType::Int32);//输出tensor，展平为1维的
+  nv::Tensor gridOut = nv::Tensor::create({outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
   gridOut.memset(-1);
+  nv::Tensor ou = nv::Tensor::create({NDim}, nv::DataType::Int32);//输出tensor，展平为1维的
+  int ou_host[3] = {outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]};
+  ou.copy_from_host(ou_host);
 
+  // 参考资料：https://zhuanlan.zhihu.com/p/383299678
   int64_t numActOut = -1;//如果subM类型的spconv，输出actnum和输入actnum是一致的，如果subM为false，则需要计算
   if (subM) {
-    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, kernelSize, stride, padding, dilation, outSpatialShape, false, useHash);
+    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, false, useHash, stream);
     return {indices, indicePairs, indiceNum};
   } else {
     // auto indicePairUnique = torch::full({indicePairs.numel() / 2 + 1}, std::numeric_limits<int>::max(), torch::dtype(torch::kInt32).device(indices.device()));

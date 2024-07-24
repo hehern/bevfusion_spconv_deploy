@@ -13,7 +13,7 @@ class Relu : public INode {
        SparseDTensor* x, 
        const std::string& output_name);
 
-  void forward() override {
+  void forward(void *stream) override {
     // output_->value_ = std::max(0, input[0]->value);
     std::cout << name_ << ", forward done!" << std::endl;
   }

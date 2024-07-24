@@ -13,7 +13,7 @@ class Reshape : public INode {
           const std::vector<int64_t>& shape, 
           const std::string& output_name);
 
-  void forward() override {
+  void forward(void *stream) override {
     //
     std::cout << name_ << ", forward done!" << std::endl;
   }

@@ -38,7 +38,7 @@ class SparseDTensor {
     const std::vector<int64_t>& indices_shape, nv::DataType indices_dtype,
     void* indices_data, std::vector<int> grid_size, void *set_data);
 
-  void update();
+  void update(void *stream);
 
  private:
   nv::Tensor features_;

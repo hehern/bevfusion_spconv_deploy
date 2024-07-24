@@ -102,6 +102,30 @@ struct Tensor {
     return data ? (T*)data->data + numel : nullptr;
   }
 
+  template <typename T> 
+  T& at(int i1) {
+    self_byte_check(sizeof(T));
+    return ((T*)data->data)[i1];
+  }
+
+  template <typename T>
+  T& at(int i1, int i2) {
+    self_byte_check(sizeof(T));
+    return ((T*)data->data)[i1 * shape[1] + i2];
+  }
+
+  template <typename T>
+  T& at(int i1, int i2, int i3) {
+    self_byte_check(sizeof(T));
+    return ((T*)data->data)[(i1 * shape[1] + i2) * shape[2] + i3];
+  }
+
+  template <typename T>
+  T& at(int i1, int i2, int i3, int i4) {
+    self_byte_check(sizeof(T));
+    return ((T*)data->data)[((i1 * shape[1] + i2) * shape[2] + i3) * shape[3] + i4];
+  }
+
   int64_t size(int index) const { return shape[index]; }
   size_t bytes() const { return data ? data->bytes : 0; }
   bool empty() const { return data == nullptr || data->empty(); }
