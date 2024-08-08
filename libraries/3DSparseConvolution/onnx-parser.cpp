@@ -73,7 +73,7 @@ static ParameterFP16Data get_initializer_data(const onnx::GraphProto& graph, con
         LOGERR("Invalid parameter data size. %ld != %ld", volumn * sizeof(unsigned short), proto.raw_data().size());
         return ParameterFP16Data();
     }
-    unsigned short* pdata = (unsigned short*)proto.raw_data().data();
+    unsigned short* pdata = (unsigned short*)proto.raw_data().data();//这里float16的数据是怎么转换为unsigned short的？
     output.data = std::vector<unsigned short>(pdata, pdata + volumn);
     return output;
 };
@@ -129,6 +129,8 @@ std::shared_ptr<Engine> load_engine_from_onnx(const std::string& onnx_file, Prec
 
             auto n = builder->push_sparse_conv(
                 node.name(), x, 
+                get_attribute_as_intarray(node, "input_spatial_shape"),
+                get_attribute_as_intarray(node, "output_spatial_shape"),
                 weight.data, weight.shape,
                 weight_dynamic_ranges,
                 bias.data, bias.shape,

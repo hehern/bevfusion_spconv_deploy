@@ -10,6 +10,8 @@ namespace spconv {
 class SparseConvolution : public INode {
  public:
   SparseConvolution(const std::string& name, SparseDTensor* x,
+                    const std::vector<int>& input_spatial_shape,
+                    const std::vector<int>& output_spatial_shape,
                     const std::vector<unsigned short>& weight, const std::vector<int>& weight_shape,
                     const std::vector<float>& weight_dynamic_ranges, const std::vector<unsigned short>& bias,
                     const std::vector<int>& bias_shape, const std::string& activation,

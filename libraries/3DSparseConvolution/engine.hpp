@@ -106,6 +106,7 @@ class EngineBuilder{
   }
 
   INode* push_sparse_conv(const std::string& name, SparseDTensor* x,
+                          const std::vector<int>& input_spatial_shape, const std::vector<int>& output_spatial_shape,
                           const std::vector<unsigned short>& weight, const std::vector<int>& weight_shape,
                           const std::vector<float>& weight_dynamic_ranges, const std::vector<unsigned short>& bias,
                           const std::vector<int>& bias_shape, const std::string& activation,
@@ -115,7 +116,7 @@ class EngineBuilder{
                           int max_output_points,const std::string& rulebook,
                           Precision precision, Precision output_precision,
                           const std::string& output_name) {
-    std::shared_ptr<INode> node(new SparseConvolution(name, x, weight, weight_shape, weight_dynamic_ranges, bias, bias_shape, activation,
+    std::shared_ptr<INode> node(new SparseConvolution(name, x, input_spatial_shape, output_spatial_shape, weight, weight_shape, weight_dynamic_ranges, bias, bias_shape, activation,
     kernel_size, stride, padding, dilation, input_dynamic_range, submanifold, max_output_points, rulebook, precision, output_precision, output_name));
     nodes_.push_back(node);
     return node.get();

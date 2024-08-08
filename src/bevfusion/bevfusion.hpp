@@ -51,10 +51,6 @@ class Core {
   virtual std::vector<head::transbbox::BoundingBox> forward(const unsigned char **camera_images, const nvtype::half *lidar_points,
                                                             int num_points, void *stream) = 0;
 
-  virtual std::vector<head::transbbox::BoundingBox> forward_no_normalize(const nvtype::half *camera_normed_images_device,
-                                                                         const nvtype::half *lidar_points, int num_points,
-                                                                         void *stream) = 0;
-
   virtual void print() = 0;
   virtual void set_timer(bool enable) = 0;
 

@@ -19,21 +19,22 @@
 // #include <torch/script.h>
 
 namespace spconv {
-// int create_conv_indice_pair_p1_cuda(
-//     nv::Tensor indicesIn, nv::Tensor indicePairs, nv::Tensor indiceNum,
-//     nv::Tensor indicePairUnique, std::vector<int64_t> kernelSize,
-//     std::vector<int64_t> stride, std::vector<int64_t> padding,
-//     std::vector<int64_t> dilation, std::vector<int64_t> outSpatialShape);
+int create_conv_indice_pair_p1_cuda(
+    nv::Tensor indicesIn, nv::Tensor indicePairs, nv::Tensor indiceNum,
+    nv::Tensor indicePairUnique, std::vector<int> kernelSize,
+    std::vector<int> stride, std::vector<int> padding,
+    std::vector<int> dilation, std::vector<int> outSpatialShape,
+    int spatialVolume, void* stream);
 
-// int create_conv_indice_pair_p2_cuda(
-//     nv::Tensor indicesIn, nv::Tensor indicesOut, nv::Tensor gridsOut,
-//     nv::Tensor indicePairs, nv::Tensor indiceNum,
-//     nv::Tensor indicePairUnique, std::vector<int64_t> outSpatialShape,
-//     bool resetGrid, bool useHash);
+int create_conv_indice_pair_p2_cuda(
+    nv::Tensor indicesIn, nv::Tensor indicesOut, nv::Tensor gridsOut,
+    nv::Tensor indicePairs, nv::Tensor indiceNum,
+    nv::Tensor indicePairUnique, std::vector<int> outSpatialShape,
+    void* stream);
 
 int create_submconv_indice_pair_cuda(
     nv::Tensor indicesIn, nv::Tensor gridsOut, nv::Tensor indicePairs,
-    nv::Tensor indiceNum, nv::Tensor outSpatialShape,
+    nv::Tensor indiceNum, nv::Tensor outSpatialShape, int spatialVolume,
     void* stream);
 
 

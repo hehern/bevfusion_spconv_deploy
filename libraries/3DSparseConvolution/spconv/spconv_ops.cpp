@@ -1,5 +1,8 @@
 #include <limits>
+#include <iostream>
+
 #include "spconv_ops.h"
+#include "common/check.hpp"
 namespace spconv {
 
 /*
@@ -42,54 +45,49 @@ getIndicePairs(nv::Tensor indices,
   msg += "must less than std::numeric_limits<int>::max() = 2e9";
   TV_ASSERT_RT_ERR(outputVolume < std::numeric_limits<int>::max(), msg);
   nv::Tensor indicePairs = nv::Tensor::create(std::vector<int32_t>{2, kernelVolume, numAct}, nv::DataType::Int32);//shape:{2,27,n}
-  indicePairs.memset(-1);
+  indicePairs.memset(-1, stream);
   nv::Tensor indiceNum = nv::Tensor::create(std::vector<int32_t>{kernelVolume}, nv::DataType::Int32);//shape:{27}
-  indiceNum.memset(0);
+  indiceNum.memset(0, stream);
   nv::Tensor gridOut = nv::Tensor::create(std::vector<int32_t>{outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
-  gridOut.memset(-1);
-  nv::Tensor ou = nv::Tensor::create(std::vector<int32_t>{NDim}, nv::DataType::Int32);//输出tensor，展平为1维的
-  ou.at<int>(0) = outSpatialShape[0];
-  ou.at<int>(1) = outSpatialShape[1];
-  ou.at<int>(2) = outSpatialShape[2];
+  gridOut.memset(-1, stream);
+  nv::Tensor ou = nv::Tensor::create(std::vector<int32_t>{NDim}, nv::DataType::Int32);//output_shape
+  checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(),outSpatialShape.size()*sizeof(int), cudaMemcpyHostToDevice, (cudaStream_t)stream));
 
   // 参考资料：https://zhuanlan.zhihu.com/p/383299678
   int64_t numActOut = -1;//如果subM类型的spconv，输出actnum和输入actnum是一致的，如果subM为false，则需要计算
-  if (subM) {
-    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, stream);
+  if (subM) {//子流行卷积
+    numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, outputVolume, stream);
     return {indices, indicePairs, indiceNum};
-  } else {
-    // auto indicePairUnique = torch::full({indicePairs.numel() / 2 + 1}, std::numeric_limits<int>::max(), torch::dtype(torch::kInt32).device(indices.device()));
-    // nv::Tensor outInds = torch::zeros({numAct * kernelVolume, coorDim + 1}, torch::dtype(torch::kInt32).device(indices.device()));
+  } else {//非子流行卷积
+    nv::Tensor indicePairUnique = nv::Tensor::create(std::vector<int32_t>{indicePairs.numel / 2 + 1}, nv::DataType::Int32);//N*2*27/2+1
+    indicePairUnique.memset(std::numeric_limits<int>::max(), stream);
+    nv::Tensor outInds = nv::Tensor::create(std::vector<int32_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}
+    outInds.memset(0, stream);
 
-    // if (indices.data->device) {
-    //   numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape);
-    //   if (numActOut > 0) {
-    //     auto res = torch::_unique(indicePairUnique);
-    //     indicePairUnique = std::get<0>(res);
-    //     numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique, outSpatialShape, false, useHash);
-    //   }
-    // } else {
-    //   TV_THROW_INVALID_ARG("not cuda type");
-    // }
+    numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape, outputVolume, stream);
+    if (numActOut > 0) {
+      // auto res = torch::_unique(indicePairUnique);//
+      // indicePairUnique = std::get<0>(res);//
+      numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique, outSpatialShape, stream);
+    }
     // return {outInds.slice(0, 0, numActOut), indicePairs, indiceNum};
+    return {outInds, indicePairs, indiceNum};
   }
 }
 
-// nv::Tensor indiceConv(nv::Tensor features, nv::Tensor filters,
-//                       nv::Tensor indicePairs, nv::Tensor indiceNum,
-//                       int64_t numActOut, int64_t _subM) {
-//   auto kernelVolume = indiceNum.size(0);
-
-//   // auto timer = spconv::CudaContextTimer<>();
-
-//   bool subM = _subM != 0;
-//   auto device = features.device().type();
-//   auto ndim = filters.dim() - 2;
+// nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
+//                       nv::Tensor filters,     // 权重(27*16*32),16为输入channel个数，32为输出channel个数
+//                       nv::Tensor indicePairs, // [2, 27, N]
+//                       nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
+//                       bool subM) {            // 子流线卷积默认 true
+  
+//   auto numActOut = features.size(0);     //N
+//   auto kernelVolume = indiceNum.size(0); //27
+//   auto ndim = filters.dim() - 2;         //
 //   auto numInPlanes = features.size(1);
 //   auto numOutPlanes = filters.size(ndim + 1);
 //   auto indicePairNumCpu = indiceNum.to({torch::kCPU});
 
-//   auto options = torch::TensorOptions().dtype(features.dtype()).device(features.device());
 //   nv::Tensor output = torch::zeros({numActOut, numOutPlanes}, options);
 //   filters = filters.view({-1, numInPlanes, numOutPlanes});
 
@@ -131,31 +129,21 @@ getIndicePairs(nv::Tensor indices,
 //     // TODO torch::from_blob is a little slow
 //     auto outputBufferBlob = torch::from_blob(outputBuffer.data_ptr(),
 //                                              {nHot, numOutPlanes}, options);
-//     auto inputBufferBlob =
-//         torch::from_blob(inputBuffer.data_ptr(), {nHot, numInPlanes}, options);
+//     auto inputBufferBlob = torch::from_blob(inputBuffer.data_ptr(), {nHot, numInPlanes}, options);
 
-//     if (device == torch::kCUDA) {
-//       sparse_gather_cuda(inputBuffer, features, indicePairs[inverse][i], nHot);
-//       /* slower than SparseGatherFunctor, may due to int->long conversion
-//       auto indicePairLong = indicePairs[i][inverse].to(torch::kInt64);
-//       auto indicePairBlob = torch::from_blob(indicePairLong.data<long>(),
-//       {nHot}, indicePairOptions); torch::index_select_out(inputBufferBlob,
-//       features, 0, indicePairBlob);*/
-//     } else {
-//       TV_THROW_INVALID_ARG("not cuda type");
-//     }
-//     // totalGatherTime += timer.report() / 1000.0;
+
+//     sparse_gather_cuda(inputBuffer, features, indicePairs[inverse][i], nHot);
+//     /* slower than SparseGatherFunctor, may due to int->long conversion
+//     auto indicePairLong = indicePairs[i][inverse].to(torch::kInt64);
+//     auto indicePairBlob = torch::from_blob(indicePairLong.data<long>(),
+//     {nHot}, indicePairOptions); torch::index_select_out(inputBufferBlob,
+//     features, 0, indicePairBlob);*/
+   
 //     torch::mm_out(outputBufferBlob, inputBufferBlob, filters[i]);
-//     // totalGEMMTime += timer.report() / 1000.0;
+//     sparse_scatter_add_cuda(outputBuffer, output, indicePairs[!inverse][i], nHot);
 
-//     if (device == torch::kCUDA) {
-//       sparse_scatter_add_cuda(outputBuffer, output, indicePairs[!inverse][i], nHot);
-//     } else {
-//       TV_THROW_INVALID_ARG("not cuda type");
-//     }
-//     // totalSAddTime += timer.report() / 1000.0;
 //   }
-//   // tv::ssprint(totalGatherTime, totalGEMMTime, totalSAddTime);
+
 //   return output;
 // }
 
