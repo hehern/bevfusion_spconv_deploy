@@ -15,8 +15,6 @@
 #ifndef SPARSE_CONV_INDICE_FUNCTOR_H_
 #define SPARSE_CONV_INDICE_FUNCTOR_H_
 #include "tensor.hpp"
-// #include <tensorview/tensorview.h>
-// #include <torch/script.h>
 
 namespace spconv {
 int create_conv_indice_pair_p1_cuda(

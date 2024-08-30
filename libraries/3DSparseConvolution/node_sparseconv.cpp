@@ -21,7 +21,6 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   name_ = name;
 
   // 参数初始化
-  weight_ = weight;
   weight_shape_ = weight_shape;
   weight_dynamic_ranges_ = weight_dynamic_ranges;
   bias_ = bias;
@@ -39,6 +38,8 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   output_precision_ = output_precision;
   input_spatial_shape_ = input_spatial_shape;
   out_spatial_shape_ = output_spatial_shape;
+
+  weight_ = nv::Tensor::from_data(&weight[0], weight_shape_, nv::DataType::Float16);//转换为gpu上的fp16类型
 }
 
 void SparseConvolution::forward(void *stream) {
@@ -52,7 +53,7 @@ void SparseConvolution::forward(void *stream) {
     std::cout << "add rulebook done" << std::endl;
   }
   // step2:conv计算
-  // indiceConv(input_[0]->features_, weight_, datas[1], datas[2], submanifold_);
+  nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], submanifold_, stream);
 
   // step3:保存输出
   // output_->set_data();

@@ -18,7 +18,7 @@
 #include "tensor.hpp"
 #include "tensorview/common.h"
 #include "indice.h"
-// #include "reordering.h"
+#include "reordering.h"
 // #include <tensorview/torch_utils.h>
 // #include <torch/script.h>
 // #include <utility/timer.h>
@@ -38,7 +38,7 @@ nv::Tensor indiceConv(nv::Tensor features,
                       nv::Tensor filters,
                       nv::Tensor indicePairs, 
                       nv::Tensor indiceNum,
-                      bool subM);
+                      bool subM, void* stream);
 
 } // namespace spconv
 #endif

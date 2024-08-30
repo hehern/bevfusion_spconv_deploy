@@ -6,6 +6,7 @@
 namespace spconv {
 
 /*
+  in:
   indices:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
   outSpatialShape:vector<int>, size()==3, 输出体素栅格shape,eg:{720, 720, 21}
   spatialShape:vector<int>, size()==3, 输入体素栅格shape,eg:{1440, 1440, 41}
@@ -13,6 +14,10 @@ namespace spconv {
   stride:vector<int>, size()==3,eg:{1, 1, 1}
   padding:vector<int>, size()==3,eg:{1, 1, 1}
   dilation:vector<int>, size()==3,eg:{1, 1, 1}
+  out:
+  indices: nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
+  indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
+  indiceNum: nv::Tensor, shape:{27},对应的是rule_book中的count
 */
 std::vector<nv::Tensor>
 getIndicePairs(nv::Tensor indices,
@@ -75,76 +80,71 @@ getIndicePairs(nv::Tensor indices,
   }
 }
 
-// nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
-//                       nv::Tensor filters,     // 权重(27*16*32),16为输入channel个数，32为输出channel个数
-//                       nv::Tensor indicePairs, // [2, 27, N]
-//                       nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
-//                       bool subM) {            // 子流线卷积默认 true
+nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
+                      nv::Tensor filters,     // eg:权重[16,3,3,3,5],5为输入channel个数，16为输出channel个数
+                      nv::Tensor indicePairs, // [2, 27, N]
+                      nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
+                      bool subM, void* stream) {            // 子流线卷积默认 true
   
-//   auto numActOut = features.size(0);     //N
-//   auto kernelVolume = indiceNum.size(0); //27
-//   auto ndim = filters.dim() - 2;         //
-//   auto numInPlanes = features.size(1);
-//   auto numOutPlanes = filters.size(ndim + 1);
-//   auto indicePairNumCpu = indiceNum.to({torch::kCPU});
+  auto numActOut = features.size(0);     // N
+  auto kernelVolume = indiceNum.size(0); // 27
+  auto numInPlanes = features.size(1);   // 5
+  auto numOutPlanes = filters.size(0);   // 16
+  auto indicePairNumCpu = indiceNum.to_host();
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-//   nv::Tensor output = torch::zeros({numActOut, numOutPlanes}, options);
-//   filters = filters.view({-1, numInPlanes, numOutPlanes});
+  nv::Tensor output = nv::Tensor::create(std::vector<int32_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
+  output.memset(0, stream);
+  filters = filters.view({-1, numInPlanes, numOutPlanes});//view这个操作好像只改变shape的顺序并不改变内存的保存顺序
 
-//   // init for subM
-//   int indicePairMaxOffset = kernelVolume / 2;
-//   int indicePairMaxSize = numActOut;
-//   if (subM) { // the center index of subm conv don't need gather and scatter
-//     // add.
-//     torch::mm_out(output, features, filters[indicePairMaxOffset]);
+  // init for subM
+  int indicePairMaxOffset = kernelVolume / 2; // 13
+  int indicePairMaxSize = numActOut;          // N
+  if (subM) { // the center index of subm conv don't need gather and scatter
+    // add.
+    // torch::mm_out(output, features, filters[indicePairMaxOffset]);//矩阵乘法，此处需要替换为自己的函数
+    unsigned short* features_ptr = features.ptr<unsigned short>();//其实是fp16
+    unsigned short* weight_ptr = filters.ptr<unsigned short>();//这里需要加个偏移量到filters[indicePairMaxOffset]
+    unsigned short* output_ptr = output.ptr<unsigned short>();
+    cuda_2d_launch(matrix_multiply_cuda_naive, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr, output_ptr);
+    
 
-//     // get indice pair second max size based on subM symmetric property
-//     indicePairMaxSize =
-//       *std::max_element(indicePairNumCpu.data_ptr<int>(),
-//                         indicePairNumCpu.data_ptr<int>() + indicePairMaxOffset);
-//     if (indicePairMaxSize == 0) {
-//       return output;
-//     }
-//   } else {
-//     indicePairMaxSize =
-//       *std::max_element(indicePairNumCpu.data_ptr<int>(),
-//                         indicePairNumCpu.data_ptr<int>() + kernelVolume);
-//   }
+    // get indice pair second max size based on subM symmetric property
+    indicePairMaxSize =
+      *std::max_element(indicePairNumCpu.data_ptr<int>(),
+                        indicePairNumCpu.data_ptr<int>() + indicePairMaxOffset);
+    if (indicePairMaxSize == 0) {
+      return output;
+    }
+  } else {
+    indicePairMaxSize =
+      *std::max_element(indicePairNumCpu.data_ptr<int>(),
+                        indicePairNumCpu.data_ptr<int>() + kernelVolume);
+  }
 
-//   nv::Tensor inputBuffer =
-//       torch::empty({indicePairMaxSize, numInPlanes}, options);
-//   nv::Tensor outputBuffer =
-//       torch::empty({indicePairMaxSize, numOutPlanes}, options);
+  nv::Tensor inputBuffer = nv::Tensor::create(std::vector<int32_t>{indicePairMaxSize, numInPlanes}, features.dtype(), features.device());
+  inputBuffer.memset(0, stream);
+  nv::Tensor outputBuffer = nv::Tensor::create(std::vector<int32_t>{indicePairMaxSize, numOutPlanes}, features.dtype(), features.device());
+  outputBuffer.memset(0, stream);
 
-//   double totalGatherTime = 0;
-//   double totalGEMMTime = 0;
-//   double totalSAddTime = 0;
-//   // tv::ssprint("first subm gemm time", timer.report() / 1000.0);
+  double totalGatherTime = 0;
+  double totalGEMMTime = 0;
+  double totalSAddTime = 0;
 
-//   for (int i = 0; i < kernelVolume; ++i) {
-//     auto nHot = indicePairNumCpu.data_ptr<int>()[i];
-//     if (nHot <= 0 || (subM && i == indicePairMaxOffset)) {
-//       continue;
-//     }
-//     // TODO torch::from_blob is a little slow
-//     auto outputBufferBlob = torch::from_blob(outputBuffer.data_ptr(),
-//                                              {nHot, numOutPlanes}, options);
-//     auto inputBufferBlob = torch::from_blob(inputBuffer.data_ptr(), {nHot, numInPlanes}, options);
+  // 按照rulebook逐卷积核元素计算
+  for (int i = 0; i < kernelVolume; ++i) {//27
+    auto nHot = indicePairNumCpu.data_ptr<int>()[i];//表示第i个卷积核元素对应激活输入输出对个数(count)
+    if (nHot <= 0 || (subM && i == indicePairMaxOffset)) {
+      continue;
+    }
 
+    sparse_gather_cuda(inputBuffer, features, indicePairs[0][i], nHot);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
+    torch::mm_out(outputBuffer, inputBuffer, filters[i]);//矩阵乘法
+    sparse_scatter_add_cuda(outputBuffer, output, indicePairs[1][i], nHot);//将结果填充到output中去
 
-//     sparse_gather_cuda(inputBuffer, features, indicePairs[inverse][i], nHot);
-//     /* slower than SparseGatherFunctor, may due to int->long conversion
-//     auto indicePairLong = indicePairs[i][inverse].to(torch::kInt64);
-//     auto indicePairBlob = torch::from_blob(indicePairLong.data<long>(),
-//     {nHot}, indicePairOptions); torch::index_select_out(inputBufferBlob,
-//     features, 0, indicePairBlob);*/
-   
-//     torch::mm_out(outputBufferBlob, inputBufferBlob, filters[i]);
-//     sparse_scatter_add_cuda(outputBuffer, output, indicePairs[!inverse][i], nHot);
+  }
 
-//   }
-
-//   return output;
-// }
+  return output;
+}
 
 } // namespace spconv

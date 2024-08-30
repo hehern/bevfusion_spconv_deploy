@@ -73,7 +73,7 @@ static ParameterFP16Data get_initializer_data(const onnx::GraphProto& graph, con
         LOGERR("Invalid parameter data size. %ld != %ld", volumn * sizeof(unsigned short), proto.raw_data().size());
         return ParameterFP16Data();
     }
-    unsigned short* pdata = (unsigned short*)proto.raw_data().data();//这里float16的数据是怎么转换为unsigned short的？
+    unsigned short* pdata = (unsigned short*)proto.raw_data().data();//因为cpu里没有fp16类型，unsigned int也占16bits，所以此处用unsigned int表示
     output.data = std::vector<unsigned short>(pdata, pdata + volumn);
     return output;
 };
