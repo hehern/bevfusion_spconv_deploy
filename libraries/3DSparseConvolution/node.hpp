@@ -11,7 +11,7 @@ class SparseDTensor;
 class INode{
  public:
   std::string name() { return name_; }
-  std::string optype() {}
+  // std::string optype() {}
   SparseDTensor* input(unsigned int index) { return input_[index]; }
   SparseDTensor* output(unsigned int index) { return output_; }
   unsigned int num_output() { return input_.size(); }

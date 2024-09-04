@@ -43,7 +43,7 @@ __global__ void prepareSubMGridKernel(
 
 /***
  * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
- * indicesIn: shape:{num_voxels:n, indices_dim:4},保存+每个active voxel的坐标(batch,x,y,z)
+ * indicesIn: shape:{num_voxels:n, indices_dim:4},保存每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
 ***/
 __global__ void getSubMIndicePairsKernel3(
@@ -256,25 +256,6 @@ assignIndicePairsKernel(size_t numActIn,
     }
   }
 }
-
-/***
- * 矩阵乘法的逐点实现方式,这个耗时超级长，目前先这样写，先让整个流程跑通
- * 对于矩阵A（m * k）和矩阵B（k * n, 每个元素访问的次数分别是n与m, 这里存在着对全局内存的多次访问
-***/
-__global__ void matrix_multiply_cuda_naive(int M, int N, int K, float* a, float* b, float* c) {//这里估计要改成fp16,再看看
-  int row = cuda_2d_x;
-  int col = cuda_2d_y;
-
-  if (row >= M || col >= N)
-      return;
-
-  float value = 0.0;
-  for (int i = 0; i < K; i++) {
-      value += a[row * K + i] * b[i * N + col];
-  }
-  c[row * N + col] = value;
-}
-
 
 } // namespace spconv
 #endif

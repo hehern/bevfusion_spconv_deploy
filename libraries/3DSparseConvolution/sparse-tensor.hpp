@@ -17,6 +17,8 @@ class SparseDTensor {
 
   std::vector<int> grid_size() const { return grid_size_; }
   std::string name() const { return name_; }
+  nv::DataType get_features_dtype() { return features_dtype_; }
+  nv::DataType get_indices_dtype() { return indices_dtype_; }
   static void clear_rulebooks() { rulebooks_.clear(); }
   static void add_rulebook(std::string name, std::vector<nv::Tensor> book) { 
     rulebooks_[name] = book; 
@@ -49,6 +51,8 @@ class SparseDTensor {
 
   std::string name_;
   INode* parent_;
+  nv::DataType features_dtype_;
+  nv::DataType indices_dtype_;
 
   // rulebook每一帧都需要重新计算的,但同一帧数据中rulebook名称相同的不同SparseConvolution变量可以使用同一个
   static std::map<std::string, std::vector<nv::Tensor>> rulebooks_;

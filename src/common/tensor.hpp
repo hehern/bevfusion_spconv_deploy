@@ -81,8 +81,8 @@ struct TensorData {
 struct Tensor {
   std::vector<int64_t> shape;
   std::shared_ptr<TensorData> data;
-  size_t numel = 0;
-  size_t ndim = 0;
+  size_t numel = 0;//shape累乘
+  size_t ndim = 0;//shape.size()
 
   template <typename T>
   T* ptr() const {
@@ -161,6 +161,8 @@ struct Tensor {
   static Tensor from_data_reference(void* data, std::vector<int32_t> shape, DataType dtype, bool device = true);
   static Tensor from_data(void* data, std::vector<int64_t> shape, DataType dtype, bool device = true, void* stream = nullptr);
   static Tensor from_data(void* data, std::vector<int32_t> shape, DataType dtype, bool device = true, void* stream = nullptr);
+  static Tensor from_data(const void* data, std::vector<int64_t> shape, DataType dtype, bool device = true, void* stream = nullptr);
+  static Tensor from_data(const void* data, std::vector<int32_t> shape, DataType dtype, bool device = true, void* stream = nullptr);
   static Tensor load(const std::string& file, bool device = true);
   static Tensor loadbinary(const std::string& file, std::vector<int64_t> shape, DataType dtype, bool device = true);
   static bool save(const Tensor& tensor, const std::string& file, void* stream = nullptr);

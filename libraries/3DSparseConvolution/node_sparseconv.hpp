@@ -43,7 +43,7 @@ class SparseConvolution : public INode {
   bool submanifold_;
   int max_output_points_;
   std::string rulebook_;
-  Precision precision_;
+  Precision precision_;//
   Precision output_precision_;
   std::vector<int> input_spatial_shape_;
   std::vector<int> out_spatial_shape_;

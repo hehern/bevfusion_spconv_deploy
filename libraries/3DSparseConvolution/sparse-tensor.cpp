@@ -27,6 +27,8 @@ void SparseDTensor::set_data(
     features_shape_ = features_shape;
     indices_shape_ = indices_shape;
     grid_size_ = grid_size;
+    features_dtype_ = features_dtype;
+    indices_dtype_ = indices_dtype;
 
     features_.reference(features_data, features_shape, features_dtype);
     indices_.reference(indices_data, indices_shape, indices_dtype);

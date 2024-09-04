@@ -21,7 +21,7 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   name_ = name;
 
   // 参数初始化
-  weight_shape_ = weight_shape;
+  weight_shape_ = weight_shape;//[out_channel, kernel_size_x, kernel_size_y, kernel_size_z, in_channel]
   weight_dynamic_ranges_ = weight_dynamic_ranges;
   bias_ = bias;
   bias_shape_ = bias_shape;
@@ -39,7 +39,28 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   input_spatial_shape_ = input_spatial_shape;
   out_spatial_shape_ = output_spatial_shape;
 
-  weight_ = nv::Tensor::from_data(&weight[0], weight_shape_, nv::DataType::Float16);//转换为gpu上的fp16类型
+  // weight转换为[kernel_size_x*kernel_size_y*kernel_size_z, in_channel, out_channel]格式
+  int kernel_x = weight_shape_[1], kernel_y = weight_shape_[2], kernel_z = weight_shape_[3];
+  int in_channel = weight_shape_[4];
+  int out_channel = weight_shape_[0];
+  int new_size = kernel_x * kernel_y * kernel_z * in_channel * out_channel;
+  std::vector<unsigned short> result(new_size);
+
+  int index_in_flattened = 0;  
+  for (int oc = 0; oc < out_channel; ++oc) {
+    for (int kx = 0; kx < kernel_x; ++kx) {
+      for (int ky = 0; ky < kernel_y; ++ky) {
+        for (int kz = 0; kz < kernel_z; ++kz) {
+          for (int ic = 0; ic < in_channel; ++ic) {
+            int kernel_index = kz + ky * kernel_z + kx * kernel_y * kernel_z;
+            int index = kernel_index * in_channel * out_channel + ic * out_channel + oc;
+            result[index] = weight[index_in_flattened++];
+          }  
+        }  
+      }  
+    }  
+  }
+  weight_ = nv::Tensor::from_data(&result[0], weight_shape_, nv::DataType::Float16, false);//转换为gpu上的fp16类型
 }
 
 void SparseConvolution::forward(void *stream) {
@@ -56,7 +77,11 @@ void SparseConvolution::forward(void *stream) {
   nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], submanifold_, stream);
 
   // step3:保存输出
-  // output_->set_data();
+  std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};
+  std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
+  output_->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<unsigned short>(), 
+                    indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
+                    out_spatial_shape_, stream);
   std::cout << name_ << ", forward done!" << std::endl;
 }
 

@@ -14,122 +14,54 @@
 
 #include "spconv/reordering.cu.h"
 #include "spconv/reordering.h"
-// #include <tensorview/cuda_utils.h>
-// #include <tensorview/kernel_utils.h>
-// #include <tensorview/mp_helper.h>
-// #include <tensorview/tensor.h>
-// #include <tensorview/tensorview.h>
-// #include <tensorview/torch_utils.h>
-// #include <type_traits>
-// #include <utility/timer.h>
+#include "common/launch.cuh"
+
 namespace spconv {
 
+void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
+                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
+                          void* stream) {
+  unsigned short* features_ptr = features.ptr<unsigned short>();//其实是fp16
+  unsigned short* weight_ptr = filters.ptr<unsigned short>();//这里需要加个偏移量到filters[indicePairMaxOffset]
+  unsigned short* output_ptr = output.ptr<unsigned short>();
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+}
+
 /***
- * buffer: 缓存区，等下在函数中填充对应voxel的特征值
+ * buffer: (max_size, 5)缓存区，等下在函数中填充对应voxel的特征值
  * features: 输入特征(N,5),5为特征维度，也可能是16、32等
  * indices: 维度为N，但真实的有效个数为size， 需要根据indeces查找到输入voxel的位置和特征值
  * size: 当前kernel元素对应的输入输出计算次数，即count
 ***/
 void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
-                        nv::Tensor indices, int size, void* stream) {
+                        nv::Tensor indices, int size, int indice_offset, 
+                        void* stream) {
   if (size <= 0)//当前kernel元素位置没有输入输出
     return;
   int numPlanes = features.size(1);//eg:5
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  bool notFound = true;
-  constexpr int NumTLP = 64;
-  constexpr int vecloadFactor = 1;//?
-  constexpr int NumILP = NumTLP / 4;//?
+  unsigned short* buffer_ptr = buffer.ptr<unsigned short>();
+  unsigned short* features_ptr = features.ptr<unsigned short>();
+  int* indices_ptr = indices.ptr<int>();
+  cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes);
 
-  int nHotBlock = (size / NumTLP) * NumTLP;
-  if (notFound) {
-    if (numPlanes % NumTLP == 0) {
-      if (nHotBlock >= NumTLP) {
-        gatherVecBlockKernel<<<dim3(size / NumTLP, numPlanes / NumTLP),
-                dim3(NumTLP / NumILP, NumTLP / vecloadFactor), 0,
-                _stream>>>(buffer.ptr<nv::DataType::Float16>(), features.ptr<nv::DataType::Float16>(),
-                          indices.ptr<nv::DataType::Int32>(), nHotBlock,
-                          numPlanes / vecloadFactor);
-
-        TV_CHECK_CUDA_ERR();
-      }
-      if (size - nHotBlock > 0) {
-        gatherVecKernel<<<dim3(1, numPlanes / NumTLP),
-                dim3(NumTLP / NumILP, NumTLP / vecloadFactor), 0,
-                _stream>>>(buffer.ptr<nv::DataType::Float16>() + nHotBlock * numPlanes,
-                          features.ptr<nv::DataType::Float16>(),
-                          indices.ptr<nv::DataType::Int32>() + nHotBlock,
-                          size - nHotBlock, numPlanes / vecloadFactor);
-
-        TV_CHECK_CUDA_ERR();
-      }
-      notFound = false;
-    }
-  }
-
-  if (notFound) {
-    constexpr int NumTLP = 64;
-    constexpr int NumILP = NumTLP / 4;
-    gatherGenericKernel<<<dim3(tv::cuda::DivUp(size, NumTLP),
-                tv::cuda::DivUp(numPlanes, NumTLP)),
-            dim3(NumTLP / NumILP, NumTLP), 0, _stream>>>(
-            buffer.ptr<nv::DataType::Float16>(), features.ptr<nv::DataType::Float16>(),
-            indices.ptr<nv::DataType::Int32>(), size, numPlanes);
-
-    TV_CHECK_CUDA_ERR();
-  }
 }
 
 void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
-                             nv::Tensor indices, int size, void* stream) {
+                             nv::Tensor indices, int size, int indice_offset,
+                             void* stream) {
   if (size <= 0)
     return;
   int numPlanes = outFeatures.size(1);
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  bool notFound = true;
-  constexpr int NumTLP = 64;
-  constexpr int vecloadFactor = 1;//?
-  constexpr int NumILP = NumTLP / 4;//?
-  int nHotBlock = (size / NumTLP) * NumTLP;
-  if (notFound) {
-    if (numPlanes % NumTLP == 0) {
-      if (nHotBlock >= NumTLP) {
-        scatterAddVecBlockKernel<<<dim3(size / NumTLP, numPlanes / NumTLP),
-                dim3(NumTLP / NumILP, NumTLP / vecloadFactor), 0,
-                _stream>>>(outFeatures.data_ptr<T>(), buffer.data_ptr<T>(),
-                          indices.data_ptr<Index>(), nHotBlock,
-                          numPlanes / vecloadFactor);
+  unsigned short* buffer_ptr = buffer.ptr<unsigned short>();
+  unsigned short* outFeatures_ptr = outFeatures.ptr<unsigned short>();
+  int* indices_ptr = indices.ptr<int>();
+  cuda_linear_launch(scatterAddGenericKernel, _stream, size, outFeatures_ptr, buffer_ptr, indices_ptr+indice_offset, numPlanes);
 
-        TV_CHECK_CUDA_ERR();
-      }
-      if (size - nHotBlock > 0) {
-        scatterAddGenericKernel<<<dim3(1, numPlanes / NumTLP), 
-                dim3(NumTLP / NumILP, NumTLP),
-                0, _stream>>>(outFeatures.ptr<nv::DataType::Float16>(),
-                            buffer.ptr<nv::DataType::Float16>() + nHotBlock * numPlanes,
-                            indices.ptr<nv::DataType::Int32>() + nHotBlock,
-                            size - nHotBlock, numPlanes);
-
-        TV_CHECK_CUDA_ERR();
-      }
-      notFound = false;
-    }
-  }
-
-  if (notFound) {
-    constexpr int NumTLP = 64;
-    constexpr int NumILP = NumTLP / 4;
-    scatterAddGenericKernel<<<dim3(tv::cuda::DivUp(size, NumTLP),
-                tv::cuda::DivUp(numPlanes, NumTLP)),
-            dim3(NumTLP / NumILP, NumTLP), 0, _stream>>>(
-            outFeatures.ptr<nv::DataType::Float16>(), buffer.ptr<nv::DataType::Float16>(),
-            indices.ptr<nv::DataType::Int32>(), size, numPlanes);
-
-
-    TV_CHECK_CUDA_ERR();
-  }
 }
 
 } // namespace spconv

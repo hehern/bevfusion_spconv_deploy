@@ -359,6 +359,20 @@ Tensor Tensor::from_data(void* data, vector<int32_t> shape, DataType dtype, bool
   return from_data(data, to_int64(shape), dtype, device, stream);
 }
 
+Tensor Tensor::from_data(const void* data, vector<int64_t> shape, DataType dtype, bool device, void* stream) {
+  Tensor output = Tensor::create(shape, dtype, device);
+  if (device) {
+    checkRuntime(cudaMemcpyAsync(output.ptr(), data, output.bytes(), cudaMemcpyDeviceToDevice, (cudaStream_t)stream));
+  } else {
+    checkRuntime(cudaMemcpyAsync(output.ptr(), data, output.bytes(), cudaMemcpyHostToHost, (cudaStream_t)stream));
+  }
+  return output;
+}
+
+Tensor Tensor::from_data(const void* data, vector<int32_t> shape, DataType dtype, bool device, void* stream) {
+  return from_data(data, to_int64(shape), dtype, device, stream);
+}
+
 Tensor Tensor::from_data_reference(void* data, vector<int64_t> shape, DataType dtype, bool device) {
   Tensor output;
   output.reference(data, shape, dtype, device);
