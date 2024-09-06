@@ -14,8 +14,11 @@
 
 #include <thrust/copy.h>
 #include <thrust/execution_policy.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <type_traits>
 #include <cuda_runtime.h>
+#include <iostream>
 #include "spconv/indice.cu.h"
 #include "spconv/indice.h"
 
@@ -51,6 +54,18 @@ int create_submconv_indice_pair_cuda(
   return numActIn;
 }
 
+/*
+  indicesIn:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
+  indicePairs:shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index,需要计算的量
+  indiceNum:nv::Tensor, shape:{27},需要计算填充的量
+  indicePairUnique:nv::Tensor, shape:{N*27+1}
+  kernelSize: 3,3,3
+  stride: eg:2,2,2
+  padding: eg:1, 1, 1
+  dilation: eg:1, 1, 1
+  outSpatialShape: eg:{720, 720, 21}
+  spatialVolume: 为outSpatialShape的累乘
+*/
 int create_conv_indice_pair_p1_cuda(
     nv::Tensor indicesIn, nv::Tensor indicePairs, nv::Tensor indiceNum,
     nv::Tensor indicePairUnique, std::vector<int> kernelSize,
@@ -78,7 +93,7 @@ int create_conv_indice_pair_p1_cuda(
 
   cuda_linear_launch(prepareIndicePairsKernel, _stream, numActIn, indicesIn.ptr<int>(), indicePairs.ptr<int>(), 
       indiceNum.ptr<int>(), indicePairUnique.ptr<int>(), 
-      ks.ptr<int>(), st.ptr<int>(), pa.ptr<int>(), di.ptr<int>(), 
+      ks.ptr<int>(), st.ptr<int>(), pa.ptr<int>(), di.ptr<int>(),
       ou.ptr<int>(), spatialVolume, kernelVolume);
   return 1;
 }
@@ -105,6 +120,33 @@ int create_conv_indice_pair_p2_cuda(
       indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>(), kernelVolume);
 
   return numAct;
+}
+
+__global__ void printNumber(int *number) {
+    // 假设我们只打印一个线程
+    printf("Number on GPU: %d\n", *number);
+}
+
+void find_unique_elements_cuda(
+  nv::Tensor& src_tensor,
+  nv::Tensor& tar_tensor
+) {
+
+int64_t num = src_tensor.shape[0];
+std::cout << "num = " << num << std::endl;
+
+thrust::sort(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+thrust::device_vector<int> d_output(src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+
+std::cout << d_output[0] << "," << d_output[1] << "," << d_output[2] << std::endl;
+
+auto end_unique = thrust::unique(thrust::device, d_output.begin(), d_output.end());
+auto unique_count = thrust::distance(d_output.begin(), end_unique);//不重复元素个数
+
+tar_tensor.reference(thrust::raw_pointer_cast(d_output.data()), std::vector<int64_t>{unique_count}, nv::DataType::Int32);
+std::cout << "unique_count = " << unique_count << std::endl;
+std::cout << "tar_tensor.shape[0] = " << tar_tensor.shape[0] << std::endl;
+
 }
 
 } // namespace spconv

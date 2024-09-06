@@ -7,6 +7,9 @@
 
 namespace spconv {
 
+/***
+ * 注释：输入add的两个数据之间只相差两个subm的spconv，所以有效体素个数、indice都不变，直接把对应的值直接相加就可以。
+*/
 class Add : public INode {
  public:
   Add(const std::string& name, SparseDTensor* a, SparseDTensor* b, 
@@ -15,12 +18,7 @@ class Add : public INode {
       Precision precision, 
       Precision output_precision);
 
-  void forward(void *stream) override {
-    // 根据输入计算输出，并调用输出的set_data将结果填充进去，两个SparseDTensor进行add操作后输出的有效体素个数、indece、以及相应的特征应该怎么计算呢？
-    // output_->value_ = input_[0]->value + input_[1]->value;
-    // output_->set_data();
-    std::cout << name_ << ", forward done!" << std::endl;
-  }
+  void forward(void *stream) override;
 
 };
 

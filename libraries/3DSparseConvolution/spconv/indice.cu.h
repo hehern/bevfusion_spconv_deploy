@@ -104,6 +104,7 @@ __global__ void getSubMIndicePairsKernel3(
     }
   }
 }
+
 /***
  * input_pos[0][1][2]分别为当前voxel的xyz坐标
  * out理解为一个[N][NDim+1]的二维数组，则每一行表示一个输出位置i，out[i][0]...out[i][NDim-1]存储第i个输出位置的索引
@@ -125,6 +126,7 @@ __device__ int getValidOutPos(const int *input_pos,
   int m, offset;
   bool valid = false;
 
+  #pragma unroll
   for (int i = 0; i < NDim; ++i) {//以当前voxel为中心参与当前卷积的所有voxel位置
     lowers[i] = (input_pos[i] - (kernelSize[i] - 1) * dilation[i] - 1 +
                  stride[i] + padding[i]) /
@@ -132,18 +134,22 @@ __device__ int getValidOutPos(const int *input_pos,
     uppers[i] = (input_pos[i] + padding[i]) / stride[i];
   }
 
+  #pragma unroll
   for (unsigned i = 0; i < NDim; ++i) {
     counterSize[i] = ((uppers[i] - lowers[i]) / dilation[i] + 1);
     numPoints *= counterSize[i];
   }
 
+  #pragma unroll
   for (int i = 0; i < NDim; ++i) {
     counter[i] = 0;
   }
+  #pragma unroll
   for (int i = 0; i < numPoints; ++i) {
     valid = true;
     m = 1;
     offset = 0;
+    #pragma unroll
     for (int j = NDim - 1; j >= 0; --j) {
       val = uppers[j] - counter[j] * dilation[j];
       out[pointCounter * (NDim + 1) + j] = val;
@@ -160,6 +166,7 @@ __device__ int getValidOutPos(const int *input_pos,
       ++pointCounter;
     counter[NDim - 1] += 1;
 
+    #pragma unroll
     for (int c = NDim - 1; c >= 0; --c) {
       if (counter[c] == counterSize[c] && c > 0) {
         counter[c - 1] += 1;
@@ -197,6 +204,7 @@ __global__ void prepareIndicePairsKernel(
   int index, tmp;
 
   numValidPoints = getValidOutPos(indicesIn + ix * (NDim + 1) + 1, kernelSize, stride, padding, dilation, outSpatialShape, validPoints);
+  #pragma unroll
   for (int i = 0; i < numValidPoints; ++i) {
     pointPtr = validPoints + i * (NDim + 1);
     auto offset = pointPtr[NDim];

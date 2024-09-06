@@ -65,6 +65,7 @@ link_directories(
 )
 
 file(GLOB_RECURSE CORE_FILES 
+  libraries/3DSparseConvolution/normal_op/*.cu
   libraries/3DSparseConvolution/*.cpp
   libraries/3DSparseConvolution/onnx/*.cpp
   libraries/3DSparseConvolution/onnx/*.cc

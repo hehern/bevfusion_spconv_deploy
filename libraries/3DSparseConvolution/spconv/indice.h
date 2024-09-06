@@ -35,6 +35,7 @@ int create_submconv_indice_pair_cuda(
     nv::Tensor indiceNum, nv::Tensor outSpatialShape, int spatialVolume,
     void* stream);
 
+void find_unique_elements_cuda(nv::Tensor& src_tensor, nv::Tensor& tar_tensor);
 
 } // namespace spconv
 

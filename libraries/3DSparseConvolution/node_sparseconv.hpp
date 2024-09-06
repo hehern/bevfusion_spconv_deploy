@@ -45,8 +45,8 @@ class SparseConvolution : public INode {
   std::string rulebook_;
   Precision precision_;//
   Precision output_precision_;
-  std::vector<int> input_spatial_shape_;
-  std::vector<int> out_spatial_shape_;
+  std::vector<int> input_spatial_shape_;//eg:1440, 1440, 41
+  std::vector<int> out_spatial_shape_;//eg:720, 720, 21
 };
 
 }// namespace spconv

@@ -19,6 +19,8 @@ class SparseDTensor {
   std::string name() const { return name_; }
   nv::DataType get_features_dtype() { return features_dtype_; }
   nv::DataType get_indices_dtype() { return indices_dtype_; }
+  const std::vector<int64_t>& get_features_shape() { return features_shape_; }
+  const std::vector<int64_t>& get_indices_shape() { return indices_shape_; }
   static void clear_rulebooks() { rulebooks_.clear(); }
   static void add_rulebook(std::string name, std::vector<nv::Tensor> book) { 
     rulebooks_[name] = book; 

@@ -36,8 +36,8 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   rulebook_ = rulebook;
   precision_ = precision;
   output_precision_ = output_precision;
-  input_spatial_shape_ = input_spatial_shape;
-  out_spatial_shape_ = output_spatial_shape;
+  input_spatial_shape_ = input_spatial_shape;//eg:1440, 1440, 41
+  out_spatial_shape_ = output_spatial_shape;//eg:720, 720, 21
 
   // weight转换为[kernel_size_x*kernel_size_y*kernel_size_z, in_channel, out_channel]格式
   int kernel_x = weight_shape_[1], kernel_y = weight_shape_[2], kernel_z = weight_shape_[3];
@@ -79,6 +79,8 @@ void SparseConvolution::forward(void *stream) {
   // step3:保存输出
   std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};
   std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
+  std::cout << "features_shape = " << datas[0].shape[0] << "," << weight_shape_[0] << std::endl;
+  std::cout << "indices_shape = " << datas[0].shape[0] << "," << datas[0].shape[1] << std::endl;
   output_->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<unsigned short>(), 
                     indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
                     out_spatial_shape_, stream);

@@ -9,7 +9,7 @@ namespace spconv {
 /*
   in:
   indices:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
-  outSpatialShape:vector<int>, size()==3, 输出体素栅格shape,eg:{720, 720, 21}
+  outSpatialShape:vector<int>, size()==3, 输出体素栅格shape,eg:{720, 720, 21},xyz的顺序
   spatialShape:vector<int>, size()==3, 输入体素栅格shape,eg:{1440, 1440, 41}
   kernelSize:vector<int>, size()==3,eg:{3, 3, 3}
   stride:vector<int>, size()==3,eg:{1, 1, 1}
@@ -64,16 +64,20 @@ getIndicePairs(nv::Tensor indices,
     numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, outputVolume, stream);
     return {indices, indicePairs, indiceNum};
   } else {//非子流行卷积
+    std::cout << "not subm" << std::endl;
     nv::Tensor indicePairUnique = nv::Tensor::create(std::vector<int64_t>{int64_t(indicePairs.numel / 2) + 1}, nv::DataType::Int32);//N*2*27/2+1
     indicePairUnique.memset(std::numeric_limits<int32_t>::max(), stream);
     nv::Tensor outInds = nv::Tensor::create(std::vector<int64_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}
     outInds.memset(0, stream);
 
     numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape, outputVolume, stream);
+    std::cout << "not subm, rulebook 1, numActOut = " << numActOut << std::endl;
     if (numActOut > 0) {
-      // auto res = torch::_unique(indicePairUnique);//
-      // indicePairUnique = std::get<0>(res);//
-      numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique, outSpatialShape, stream);
+      nv::Tensor indicePairUnique_new;
+      find_unique_elements_cuda(indicePairUnique, indicePairUnique_new);//挑出tensor中的独立不重复元素,并按照升序排列
+      std::cout << "not subm, rulebook 2, find_unique_elements_cuda done" << std::endl;
+      numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique_new, outSpatialShape, stream);
+      std::cout << "not subm, rulebook 2, numActOut = " << numActOut << std::endl;
     }
     // return {outInds.slice(0, 0, numActOut), indicePairs, indiceNum};
     return {outInds, indicePairs, indiceNum};
@@ -129,7 +133,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
     }
 
     sparse_gather_cuda(inputBuffer, features, indicePairs, nHot, i*numActOut, stream);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
-    matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i, stream);
+    matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i, stream);//gemm
     sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActOut, stream);//将结果填充到output中去
 
   }

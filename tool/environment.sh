@@ -35,10 +35,10 @@ export CUDNN_Lib=/usr/lib/aarch64-linux-gnu
 
 
 # resnet50/resnet50int8/swint
-export DEBUG_MODEL=resnet50int8
+export DEBUG_MODEL=resnet50
 
 # fp16/int8
-export DEBUG_PRECISION=int8
+export DEBUG_PRECISION=fp16
 export DEBUG_DATA=example-data
 export USE_Python=OFF
 
