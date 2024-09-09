@@ -127,26 +127,25 @@ __global__ void printNumber(int *number) {
     printf("Number on GPU: %d\n", *number);
 }
 
-void find_unique_elements_cuda(
-  nv::Tensor& src_tensor,
-  nv::Tensor& tar_tensor
-) {
+nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
 
-int64_t num = src_tensor.shape[0];
-std::cout << "num = " << num << std::endl;
+  int64_t num = src_tensor.shape[0];
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  checkRuntime(cudaStreamSynchronize(_stream));
 
-thrust::sort(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
-thrust::device_vector<int> d_output(src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+  thrust::sort(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+  thrust::device_vector<int> d_output(src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
 
-std::cout << d_output[0] << "," << d_output[1] << "," << d_output[2] << std::endl;
+  auto end_unique = thrust::unique(thrust::device, d_output.begin(), d_output.end());
+  auto unique_count = thrust::distance(d_output.begin(), end_unique);//不重复元素个数
 
-auto end_unique = thrust::unique(thrust::device, d_output.begin(), d_output.end());
-auto unique_count = thrust::distance(d_output.begin(), end_unique);//不重复元素个数
-
-tar_tensor.reference(thrust::raw_pointer_cast(d_output.data()), std::vector<int64_t>{unique_count}, nv::DataType::Int32);
-std::cout << "unique_count = " << unique_count << std::endl;
-std::cout << "tar_tensor.shape[0] = " << tar_tensor.shape[0] << std::endl;
-
+  nv::Tensor tar_tensor = nv::Tensor::from_data(thrust::raw_pointer_cast(d_output.data()), std::vector<int64_t>{unique_count}, nv::DataType::Int32);
+  std::cout << "unique_count = " << unique_count << std::endl;
+  // std::cout << "tar_tensor.size(0) = " << tar_tensor.size(0) << std::endl;
+  // printNumber<<<1, 1>>>(tar_tensor.ptr<int>());
+  // tar_tensor.to_host_(stream);
+  // std::cout << tar_tensor.ptr<int>()[0] << "," << tar_tensor.ptr<int>()[1] << std::endl;
+  return tar_tensor;
 }
 
 } // namespace spconv

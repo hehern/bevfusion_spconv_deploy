@@ -25,7 +25,7 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
   unsigned short* weight_ptr = filters.ptr<unsigned short>();//这里需要加个偏移量到filters[indicePairMaxOffset]
   unsigned short* output_ptr = output.ptr<unsigned short>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
 }
 
 /***

@@ -73,14 +73,14 @@ getIndicePairs(nv::Tensor indices,
     numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape, outputVolume, stream);
     std::cout << "not subm, rulebook 1, numActOut = " << numActOut << std::endl;
     if (numActOut > 0) {
-      nv::Tensor indicePairUnique_new;
-      find_unique_elements_cuda(indicePairUnique, indicePairUnique_new);//挑出tensor中的独立不重复元素,并按照升序排列
+      nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列
       std::cout << "not subm, rulebook 2, find_unique_elements_cuda done" << std::endl;
       numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique_new, outSpatialShape, stream);
       std::cout << "not subm, rulebook 2, numActOut = " << numActOut << std::endl;
     }
-    // return {outInds.slice(0, 0, numActOut), indicePairs, indiceNum};
-    return {outInds, indicePairs, indiceNum};
+    nv::Tensor finalOutInds = nv::Tensor::from_data(outInds.ptr<int>(), std::vector<int64_t>{numActOut, coorDim + 1}, nv::DataType::Int32);//切片，这地方用from_data有点浪费了，可以优化
+    // return {outInds.slice(0, 0, numActOut), indicePairs, indiceNum};//at::Tensor slice(int64_t dim=0, ::std::optional<int64_t> start=::std::nullopt, ::std::optional<int64_t> end=::std::nullopt, int64_t step=1) const;
+    return {finalOutInds, indicePairs, indiceNum};
   }
 }
 
