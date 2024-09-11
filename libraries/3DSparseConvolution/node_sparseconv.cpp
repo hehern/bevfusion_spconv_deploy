@@ -74,7 +74,7 @@ void SparseConvolution::forward(void *stream) {
     std::cout << "add rulebook done" << std::endl;
   }
   // step2:conv计算
-  nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], submanifold_, stream);
+  nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
 
   // step3:保存输出
   std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};

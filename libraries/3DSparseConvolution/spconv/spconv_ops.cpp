@@ -56,7 +56,7 @@ getIndicePairs(nv::Tensor indices,
   nv::Tensor gridOut = nv::Tensor::create(std::vector<int64_t>{outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
   gridOut.memset(-1, stream);
   nv::Tensor ou = nv::Tensor::create(std::vector<int64_t>{NDim}, nv::DataType::Int32);//output_shape
-  checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(),outSpatialShape.size()*sizeof(int), cudaMemcpyHostToDevice, (cudaStream_t)stream));
+  checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), outSpatialShape.size()*sizeof(int), cudaMemcpyHostToDevice, (cudaStream_t)stream));
 
   // 参考资料：https://zhuanlan.zhihu.com/p/383299678
   int64_t numActOut = -1;//如果subM类型的spconv，输出actnum和输入actnum是一致的，如果subM为false，则需要计算
@@ -88,12 +88,13 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
                       nv::Tensor filters,     // eg:权重[3*3*3,5,16],5为输入channel个数，16为输出channel个数
                       nv::Tensor indicePairs, // [2, 27, N]
                       nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
+                      int64_t numActOut,
                       bool subM, void* stream) {            // 子流线卷积默认 true
   
-  auto numActOut = features.size(0);     // N
   auto kernelVolume = indiceNum.size(0); // 27
   auto numInPlanes = features.size(1);   // 5
   auto numOutPlanes = filters.size(0);   // 16
+  auto numActIn = indicePairs.size(2);
   auto indicePairNumCpu = indiceNum.to_host();
 
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
@@ -132,10 +133,9 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
       continue;
     }
 
-    sparse_gather_cuda(inputBuffer, features, indicePairs, nHot, i*numActOut, stream);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
+    sparse_gather_cuda(inputBuffer, features, indicePairs, nHot, i*numActIn, stream);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
     matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i, stream);//gemm
-    sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActOut, stream);//将结果填充到output中去
-
+    sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActIn, stream);//将结果填充到output中去
   }
 
   return output;

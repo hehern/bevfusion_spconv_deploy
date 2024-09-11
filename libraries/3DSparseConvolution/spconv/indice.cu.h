@@ -107,7 +107,7 @@ __global__ void getSubMIndicePairsKernel3(
 
 /***
  * input_pos[0][1][2]分别为当前voxel的xyz坐标
- * out理解为一个[N][NDim+1]的二维数组，则每一行表示一个输出位置i，out[i][0]...out[i][NDim-1]存储第i个输出位置的索引
+ * out理解为一个[N][NDim+1]的二维数组，则每一行表示一个输出位置i，out[i][0]...out[i][NDim-1]存储第i个输出位置的索引xyz
  * out[i][NDim]存储与输入相作用的kernel的偏移(offset)
 ***/
 __device__ int getValidOutPos(const int *input_pos,
@@ -120,14 +120,14 @@ __device__ int getValidOutPos(const int *input_pos,
   int uppers[NDim];
   int counter[NDim];
   int counterSize[NDim];
-  int pointCounter = 0;//存储当前voxel对应的conv的输入voxel个数
+  int pointCounter = 0;//存储当前voxel作为输入的输出的voxel总个数
   int val;
   int numPoints = 1;
   int m, offset;
   bool valid = false;
 
   #pragma unroll
-  for (int i = 0; i < NDim; ++i) {//以当前voxel为中心参与当前卷积的所有voxel位置
+  for (int i = 0; i < NDim; ++i) {//在各个维度上计算用当前voxel作为输入的所有输出点的上限和下限,注意这个上限和下限是在输出grid上的index
     lowers[i] = (input_pos[i] - (kernelSize[i] - 1) * dilation[i] - 1 +
                  stride[i] + padding[i]) /
                 stride[i];
@@ -135,7 +135,7 @@ __device__ int getValidOutPos(const int *input_pos,
   }
 
   #pragma unroll
-  for (unsigned i = 0; i < NDim; ++i) {
+  for (unsigned i = 0; i < NDim; ++i) {//输出grid中这个范围内(三维可以认为是立方体范围内)的voxel总个数
     counterSize[i] = ((uppers[i] - lowers[i]) / dilation[i] + 1);
     numPoints *= counterSize[i];
   }
@@ -145,26 +145,26 @@ __device__ int getValidOutPos(const int *input_pos,
     counter[i] = 0;
   }
   #pragma unroll
-  for (int i = 0; i < numPoints; ++i) {
+  for (int i = 0; i < numPoints; ++i) {//遍历范围内所有的voxel
     valid = true;
     m = 1;
     offset = 0;
     #pragma unroll
-    for (int j = NDim - 1; j >= 0; --j) {
-      val = uppers[j] - counter[j] * dilation[j];
-      out[pointCounter * (NDim + 1) + j] = val;
+    for (int j = NDim - 1; j >= 0; --j) {//2 1 0
+      val = uppers[j] - counter[j] * dilation[j];//voxel的绝对位置
+      out[pointCounter * (NDim + 1) + j] = val;//4维，保存顺序是xyz空,需要注意这里
       if (val < 0 || (val > outSpatialShape[j] - 1)) {//检查是否越界
         valid = false;
         // break;
       }
-      offset += m * (input_pos[j] - val * stride[j] + padding[j]) / dilation[j];
+      offset += m * (input_pos[j] - val * stride[j] + padding[j]) / dilation[j];//当前voxel对应的conv offset
       m *= kernelSize[j];
     }
 
-    out[pointCounter * (NDim + 1) + NDim] = offset;
+    out[pointCounter * (NDim + 1) + NDim] = offset;//out[i][Ndim]存储于输入相作用kernel的偏移(offset)（即用卷积核中的那个权重计算）
     if (valid)
-      ++pointCounter;
-    counter[NDim - 1] += 1;
+      ++pointCounter;//++
+    counter[NDim - 1] += 1;//counter[2]为啥一直在++？
 
     #pragma unroll
     for (int c = NDim - 1; c >= 0; --c) {
@@ -182,6 +182,7 @@ __device__ int getValidOutPos(const int *input_pos,
  * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
  * indicesIn: shape:{num_voxels:n, indices_dim:4},保存+每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
+ * indicePairUnique: shape:{27*n+1}
 ***/
 __global__ void prepareIndicePairsKernel(
     size_t numActIn,
@@ -198,26 +199,39 @@ __global__ void prepareIndicePairsKernel(
   const int NDim = 3;
   const int KernelMaxVolume = 256;//参与当前conv的voxel的总个数最大值,设置一个合理的值好分配内存
   int numValidPoints = 0;
-  int validPoints[KernelMaxVolume * (NDim + 1)];
+  int validPoints[KernelMaxVolume * (NDim + 1)];//256*4
   int *pointPtr = nullptr;
-  auto indicePairsDim2 = numActIn;
+  // int *indicesInPtr = indicesIn + ix * (NDim + 1);
   int index, tmp;
 
-  numValidPoints = getValidOutPos(indicesIn + ix * (NDim + 1) + 1, kernelSize, stride, padding, dilation, outSpatialShape, validPoints);
+  numValidPoints = getValidOutPos(indicesIn + ix * (NDim + 1) + 1, kernelSize, stride, padding, dilation, outSpatialShape, validPoints);//validPoints为numValidPoints*NDim，前三个维度相当于Pout，最后一个维度保存的是conv offset
+  // printf("numValidPoints: %d, index: %d\n", numValidPoints, index);
+  // printf("index: x:%d, y:%d, z:%d, outSpatialShape:%d, %d, %d\n", indicesInPtr[1], indicesInPtr[2], indicesInPtr[3], outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]);
   #pragma unroll
   for (int i = 0; i < numValidPoints; ++i) {
-    pointPtr = validPoints + i * (NDim + 1);
-    auto offset = pointPtr[NDim];
-    int oldNum = atomicAdd(indiceNum + offset, int(1));
+    pointPtr = validPoints + i * (NDim + 1);//x y z offset
+    // printf("validPoints: x:%d, y:%d, z:%d, offset:%d\n", pointPtr[0], pointPtr[1], pointPtr[2], pointPtr[3]);
+    auto voxel_idx = pointPtr[0];
+    auto voxel_idy = pointPtr[1];
+    auto voxel_idz = pointPtr[2];
+    auto offset = pointPtr[NDim];//offset
+    int oldNum = atomicAdd(indiceNum + offset, int(1));//indiceNum对应位置++，即rulebook中count++
     tmp = offset * numActIn + oldNum;
     indicePairs[tmp] = ix;//indicePairs(0, offset, oldNum) = ix;
-    index = (indicesIn[3] * outSpatialShape[1] + indicesIn[2]) * outSpatialShape[0] + indicesIn[1];//index为对应的输出grid中的一维index
+
+    index = (voxel_idz * outSpatialShape[1] + voxel_idy) * outSpatialShape[0] + voxel_idx;//index为对应的输出grid中的一维index
+    indicePairUnique[tmp] = index;//offset * numActIn + oldNum 位置保存输出grid栅格序号
+
     tmp = (kernelVolume + offset) * numActIn + oldNum;
     indicePairs[tmp] = index;//indicePairs(1, offset, oldNum) = index;
-    indicePairUnique[offset * indicePairsDim2 + oldNum] = index;
+    
+    // printf("indicePairUnique, tmp: %d, index: %d\n", tmp, index);
   }
 }
 
+/***
+ * indicesOut四个维度，依次填充batch_size、x、y、z
+***/
 __global__ void assignGridAndIndiceOutKernel(
     size_t numActIn,
     int* indicesOut, int* gridsOut,
@@ -229,16 +243,16 @@ __global__ void assignGridAndIndiceOutKernel(
 
   const int NDim = 3;
 
-  int index = indicePairUnique[ix];
+  int index = indicePairUnique[ix];//一维序号
   gridsOut[index] = ix;
 
-  int* output = indicesOut + ix * (NDim + 1) + 1;
-  for (int i = NDim - 1; i >= 0; --i) {
+  int* output = indicesOut + ix * (NDim + 1) + 1;//x
+  for (int i = NDim - 1; i >= 0; --i) {//zyx依次填充
     output[i] = index % outSpatialShape[i];
     index -= output[i];
     index /= outSpatialShape[i];
   }
-  indicesOut[ix * (NDim + 1)] = index;
+  indicesOut[ix * (NDim + 1)] = 0;//batch_size就填0吧，其实不用
 }
 
 __global__ void

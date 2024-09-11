@@ -58,7 +58,7 @@ int create_submconv_indice_pair_cuda(
   indicesIn:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
   indicePairs:shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index,需要计算的量
   indiceNum:nv::Tensor, shape:{27},需要计算填充的量
-  indicePairUnique:nv::Tensor, shape:{N*27+1}
+  indicePairUnique:nv::Tensor, shape:{N*27+1},需要计算的量
   kernelSize: 3,3,3
   stride: eg:2,2,2
   padding: eg:1, 1, 1
@@ -98,6 +98,15 @@ int create_conv_indice_pair_p1_cuda(
   return 1;
 }
 
+/*
+  indicesIn:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)--输入数据的
+  indicesOut:{numAct * kernelVolume, coorDim + 1}需要计算的输出数据的坐标!!!
+  gridsOut:outputVolume形状的grid，对应的输出有效位置存放的是有效voxel序号，从0-numAct
+  indicePairs:shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index,需要计算的量
+  indiceNum:nv::Tensor, shape:{27},conv每个元素参与计算的次数，即count
+  indicePairUnique:nv::Tensor, shape:{numActOut},里面保存的是输出grid中有效voxel的坐标（一维的）
+  outSpatialShape: eg:{720, 720, 21}
+*/
 int create_conv_indice_pair_p2_cuda(
     nv::Tensor indicesIn, nv::Tensor indicesOut, nv::Tensor gridsOut,
     nv::Tensor indicePairs, nv::Tensor indiceNum, nv::Tensor indicePairUnique, 
@@ -115,9 +124,9 @@ int create_conv_indice_pair_p2_cuda(
   checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), ndim*sizeof(int), cudaMemcpyHostToDevice, _stream));
 
   cuda_linear_launch(assignGridAndIndiceOutKernel, _stream, numAct, indicesOut.ptr<int>(), gridsOut.ptr<int>(), 
-      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>());
+      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>());//计算indicesOut
   cuda_linear_launch(assignIndicePairsKernel, _stream, numActIn, indicesOut.ptr<int>(), gridsOut.ptr<int>(),
-      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>(), kernelVolume);
+      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>(), kernelVolume);//填充???
 
   return numAct;
 }
