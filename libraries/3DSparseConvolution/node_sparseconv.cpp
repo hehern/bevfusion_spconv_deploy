@@ -17,7 +17,7 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
                                      const std::string& output_name) {
   // 输入输出变量初始化
   input_.push_back(x);
-  output_ = new SparseDTensor(output_name, this);
+  output_.push_back(new SparseDTensor(output_name, this));
   name_ = name;
 
   // 参数初始化
@@ -60,7 +60,7 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
       }  
     }  
   }
-  weight_ = nv::Tensor::from_data(&result[0], weight_shape_, nv::DataType::Float16, false);//转换为gpu上的fp16类型
+  weight_ = nv::Tensor::from_data(&result[0], std::vector<int64_t>{kernel_x*kernel_y*kernel_z, in_channel, out_channel}, nv::DataType::Float16, false);//转换为gpu上的fp16类型
 }
 
 void SparseConvolution::forward(void *stream) {
@@ -82,9 +82,9 @@ void SparseConvolution::forward(void *stream) {
   std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
   std::cout << "features_shape = " << datas[0].shape[0] << "," << weight_shape_[0] << std::endl;
   std::cout << "indices_shape = " << datas[0].shape[0] << "," << datas[0].shape[1] << std::endl;
-  output_->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<unsigned short>(), 
-                    indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
-                    out_spatial_shape_, stream);
+  output_[0]->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<half>(), 
+                       indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
+                       out_spatial_shape_, stream);
   std::cout << name_ << ", forward done!" << std::endl;
 }
 

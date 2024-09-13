@@ -1,6 +1,7 @@
 #ifndef __SPCONV_NODE_SPARSE_CONV_HPP__
 #define __SPCONV_NODE_SPARSE_CONV_HPP__
 
+#include <cuda_fp16.h>
 #include <vector>
 #include "node.hpp"
 #include "sparse-tensor.hpp"

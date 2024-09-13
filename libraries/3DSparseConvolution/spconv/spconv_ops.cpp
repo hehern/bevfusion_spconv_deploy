@@ -2,6 +2,8 @@
 #include <iostream>
 #include <algorithm>
 
+#include <cuda_fp16.h>
+
 #include "spconv_ops.h"
 #include "common/check.hpp"
 #include "common/timer.hpp"
@@ -103,7 +105,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   
   auto kernelVolume = indiceNum.size(0); // 27
   auto numInPlanes = features.size(1);   // 5
-  auto numOutPlanes = filters.size(0);   // 16
+  auto numOutPlanes = filters.size(2);   // 16
   auto numActIn = indicePairs.size(2);
 
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);

@@ -1,4 +1,5 @@
 #include "sparse-tensor.hpp"
+#include "common/timer.hpp"
 
 namespace spconv {
 std::map<std::string, std::vector<nv::Tensor>> SparseDTensor::rulebooks_ = {};
@@ -30,9 +31,12 @@ void SparseDTensor::set_data(
     features_dtype_ = features_dtype;
     indices_dtype_ = indices_dtype;
 
-    features_.reference(features_data, features_shape, features_dtype);
-    indices_.reference(indices_data, indices_shape, indices_dtype);
+    features_ = nv::Tensor::create(features_shape, features_dtype);
+    features_.copy_from_device(features_data, stream);
+    indices_ = nv::Tensor::create(indices_shape, indices_dtype);
+    indices_.copy_from_device(indices_data, stream);
 
+    
 }
 
 void SparseDTensor::update(void *stream) {

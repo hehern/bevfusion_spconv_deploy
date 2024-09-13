@@ -5,7 +5,7 @@ namespace spconv {
 
 Relu::Relu(const std::string& name, SparseDTensor* x, const std::string& output_name) {
   input_.push_back(x);
-  output_ = new SparseDTensor(output_name, this);
+  output_.push_back(new SparseDTensor(output_name, this));
   name_ = name;
 }
 
@@ -19,9 +19,9 @@ void Relu::forward(void *stream) {
   relu_cuda(input_[0]->features(), output_buffer, act_num, voxel_dim, stream);
 
   // step2:调用输出的set_data将结果填充进去
-  output_->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<unsigned short>(),
-                    input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
-                    input_[0]->grid_size(), stream);
+  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<unsigned short>(),
+                       input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
+                       input_[0]->grid_size(), stream);
   std::cout << name_ << ", forward done!" << std::endl;
 }
 

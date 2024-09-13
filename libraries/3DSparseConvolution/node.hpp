@@ -13,7 +13,7 @@ class INode{
   std::string name() { return name_; }
   // std::string optype() {}
   SparseDTensor* input(unsigned int index) { return input_[index]; }
-  SparseDTensor* output(unsigned int index) { return output_; }
+  SparseDTensor* output(unsigned int index) { return output_[index]; }
   unsigned int num_output() { return input_.size(); }
   unsigned int num_input() { return 1; }
   void set_is_computed(bool flag) { is_computed = flag; }
@@ -23,7 +23,7 @@ class INode{
 
  public:
   std::vector<SparseDTensor*> input_;
-  SparseDTensor* output_;
+  std::vector<SparseDTensor*> output_;
   std::string name_;
   bool is_computed = false;
 };
