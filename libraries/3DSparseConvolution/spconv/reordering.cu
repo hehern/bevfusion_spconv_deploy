@@ -15,17 +15,41 @@
 #include "spconv/reordering.cu.h"
 #include "spconv/reordering.h"
 #include "common/launch.cuh"
+#include <iostream>
+#include <cublas_v2.h>
 
 namespace spconv {
 
 void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
-  unsigned short* features_ptr = features.ptr<unsigned short>();//其实是fp16
-  unsigned short* weight_ptr = filters.ptr<unsigned short>();//这里需要加个偏移量到filters[indicePairMaxOffset]
-  unsigned short* output_ptr = output.ptr<unsigned short>();
+  half* features_ptr = features.ptr<half>();//其实是fp16
+  half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[indicePairMaxOffset]
+  half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  // cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  
+  // const int BM = 32;
+  // const int BN = 32;
+  // const int TM = 8;
+  // const int TN = 8;
+  // dim3 blockDim(BN / TN, BM / TM);
+  // dim3 gridDim((numOutPlanes + BN - 1) / BN, (numActOut + BM - 1) / BM);
+  // SgemmV6<<<gridDim, blockDim, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  
+  // half alpha = 1.0f;
+  // half beta = 0.0f;
+  // cublasHandle_t handle;
+  // cublasStatus_t status = cublasCreate(&handle);
+  // if (status != CUBLAS_STATUS_SUCCESS) {
+  //   std::cerr << "!!!! CUBLAS initialization error\n";
+  // }
+  // cublasHgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, numOutPlanes, numActOut, numInPlanes, &alpha, 
+  //             weight_ptr+filter_offset*numInPlanes*numOutPlanes, numOutPlanes, 
+  //             features_ptr, numInPlanes, &beta,
+  //             output_ptr, numOutPlanes);
+
 }
 
 /***
@@ -40,13 +64,17 @@ void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
   if (size <= 0)//当前kernel元素位置没有输入输出
     return;
   int numPlanes = features.size(1);//eg:5
+  int num_act = features.size(0);
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  unsigned short* buffer_ptr = buffer.ptr<unsigned short>();
-  unsigned short* features_ptr = features.ptr<unsigned short>();
+  half* buffer_ptr = buffer.ptr<half>();
+  half* features_ptr = features.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
-  cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes);
-
+  // checkRuntime(cudaStreamSynchronize(_stream));
+  // std::cout << "sparse_gather_cuda begin" << std::endl;
+  cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes, num_act);
+  // checkRuntime(cudaStreamSynchronize(_stream));
+  // std::cout << "sparse_gather_cuda end" << std::endl;
 }
 
 void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
@@ -57,8 +85,8 @@ void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
   int numPlanes = outFeatures.size(1);
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  unsigned short* buffer_ptr = buffer.ptr<unsigned short>();
-  unsigned short* outFeatures_ptr = outFeatures.ptr<unsigned short>();
+  half* buffer_ptr = buffer.ptr<half>();
+  half* outFeatures_ptr = outFeatures.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
   cuda_linear_launch(scatterAddGenericKernel, _stream, size, outFeatures_ptr, buffer_ptr, indices_ptr+indice_offset, numPlanes);
 

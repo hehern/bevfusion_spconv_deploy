@@ -4,6 +4,7 @@
 
 #include "spconv_ops.h"
 #include "common/check.hpp"
+#include "common/timer.hpp"
 namespace spconv {
 
 /*
@@ -60,8 +61,12 @@ getIndicePairs(nv::Tensor indices,
 
   // 参考资料：https://zhuanlan.zhihu.com/p/383299678
   int64_t numActOut = -1;//如果subM类型的spconv，输出actnum和输入actnum是一致的，如果subM为false，则需要计算
+  nv::EventTimer timer_;
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
   if (subM) {//子流行卷积
+    timer_.start(_stream);
     numActOut = create_submconv_indice_pair_cuda(indices, gridOut, indicePairs, indiceNum, ou, outputVolume, stream);
+    timer_.stop("create_submconv_indice_pair_cuda");
     return {indices, indicePairs, indiceNum};
   } else {//非子流行卷积
     std::cout << "not subm" << std::endl;
@@ -69,13 +74,18 @@ getIndicePairs(nv::Tensor indices,
     indicePairUnique.memset(std::numeric_limits<int32_t>::max(), stream);
     nv::Tensor outInds = nv::Tensor::create(std::vector<int64_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}
     outInds.memset(0, stream);
-
+    timer_.start(_stream);
     numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape, outputVolume, stream);
+    timer_.stop("create_conv_indice_pair_p1_cuda");
     std::cout << "not subm, rulebook 1, numActOut = " << numActOut << std::endl;
     if (numActOut > 0) {
+      timer_.start(_stream);
       nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列
+      timer_.stop("find_unique_elements_cuda");
       std::cout << "not subm, rulebook 2, find_unique_elements_cuda done" << std::endl;
+      timer_.start(_stream);
       numActOut = create_conv_indice_pair_p2_cuda(indices, outInds, gridOut, indicePairs, indiceNum, indicePairUnique_new, outSpatialShape, stream);
+      timer_.stop("create_conv_indice_pair_p2_cuda");
       std::cout << "not subm, rulebook 2, numActOut = " << numActOut << std::endl;
     }
     nv::Tensor finalOutInds = nv::Tensor::from_data(outInds.ptr<int>(), std::vector<int64_t>{numActOut, coorDim + 1}, nv::DataType::Int32);//切片，这地方用from_data有点浪费了，可以优化
@@ -95,6 +105,23 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   auto numInPlanes = features.size(1);   // 5
   auto numOutPlanes = filters.size(0);   // 16
   auto numActIn = indicePairs.size(2);
+
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  nv::EventTimer timer_;
+  // checkRuntime(cudaStreamSynchronize(_stream));
+
+  // std::cout << "indiceConv begin features address = " << features.ptr<unsigned short>() << ", features.size = " << features.size(0) << "," << features.size(1) << std::endl;
+  // std::cout << features.ptr() << ", " << features.bytes() << ", " << features.ptr<unsigned short>()[0] << std::endl;
+  // std::cout << features.ptr() << ", " << features.bytes() << std::endl;
+  // auto featuresHost1 = features.to_host(stream);
+  // features.to_host_(stream);
+  // nv::Tensor test(features.shape, features.dtype(), false);
+  // std::cout << test.ptr() << ", " << test.bytes()  << ", " << test.ptr<unsigned short>()[0] << std::endl;
+  // checkRuntime(cudaMemcpyAsync(test.ptr(), features.ptr(), features.bytes(), cudaMemcpyDeviceToHost, _stream));
+  // std::cout << "featuresHost1 tohost" << std::endl;
+  // auto filtersHost1 = filters.to_host(stream);
+  // std::cout << "filtersHost1 tohost" << std::endl;
+
   auto indicePairNumCpu = indiceNum.to_host();
 
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
@@ -105,7 +132,9 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   int indicePairMaxSize = numActOut;          // N
   if (subM) { // the center index of subm conv don't need gather and scatter
     // add.
+    timer_.start(_stream);
     matrix_multiply_cuda(features, filters, output, numActOut, numOutPlanes, numInPlanes, indicePairMaxOffset, stream);
+    timer_.stop("matrix_multiply_cuda");
 
     // get indice pair second max size based on subM symmetric property
     indicePairMaxSize =
@@ -124,6 +153,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   inputBuffer.memset(0, stream);
   nv::Tensor outputBuffer = nv::Tensor::create(std::vector<int64_t>{indicePairMaxSize, numOutPlanes}, features.dtype(), features.device());
   outputBuffer.memset(0, stream);
+  // checkRuntime(cudaStreamSynchronize(_stream));
 
 
   // 按照rulebook逐卷积核元素计算
@@ -132,12 +162,32 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
     if (nHot <= 0 || (subM && i == indicePairMaxOffset)) {
       continue;
     }
-
+    std::cout << "nHot = " << nHot << ", indicePairMaxSize = " << indicePairMaxSize 
+              << ", numActIn = " << numActIn << ", numActOut = " << numActOut
+              << ", numInPlanes = " << numInPlanes << ", numOutPlanes = " << numOutPlanes << std::endl;
+    // auto inputBufferHost = inputBuffer.to_host(stream);
+    // std::cout << "inputBufferHost tohost" << std::endl;
+    // auto indicePairsHost = indicePairs.to_host(stream);
+    // std::cout << "indicePairsHost tohost" << std::endl;
+    std::cout << "features address = " << features.ptr<unsigned short>() << ", features.size = " << features.size(0) << "," << features.size(1) << std::endl;
+    // auto featuresHost = features.to_host(stream);
+    // std::cout << "featuresHost tohost" << std::endl;
+    timer_.start(_stream);
     sparse_gather_cuda(inputBuffer, features, indicePairs, nHot, i*numActIn, stream);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
+    timer_.stop("sparse_gather_cuda");
+    // checkRuntime(cudaStreamSynchronize(_stream));
+    timer_.start(_stream);
     matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i, stream);//gemm
+    timer_.stop("matrix_multiply_cuda");
+    // checkRuntime(cudaStreamSynchronize(_stream));
+    timer_.start(_stream);
     sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActIn, stream);//将结果填充到output中去
+    timer_.stop("sparse_scatter_add_cuda");
+    // checkRuntime(cudaStreamSynchronize(_stream));
   }
 
+  // auto outputHost = output.to_host(stream);
+  // std::cout << "indiceConv output tohost" << std::endl;
   return output;
 }
 

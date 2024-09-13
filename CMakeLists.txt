@@ -94,6 +94,7 @@ target_link_libraries(bevfusion_core
   libnvinfer.so
   ${Protobuf_LIBRARIES}
   libnvinfer_plugin.so
+  ${CUDA_cublas_LIBRARY}
 )
 #######################################################################
 
