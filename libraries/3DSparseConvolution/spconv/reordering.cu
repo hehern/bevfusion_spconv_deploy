@@ -21,14 +21,14 @@
 namespace spconv {
 
 void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
-                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
-                          void* stream) {
+                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset/*, 
+                          void* stream*/) {
   half* features_ptr = features.ptr<half>();//其实是fp16
   half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[indicePairMaxOffset]
   half* output_ptr = output.ptr<half>();
-  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  // cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
   // cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
-  cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  // cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
   
   // const int BM = 32;
   // const int BN = 32;
@@ -38,17 +38,18 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
   // dim3 gridDim((numOutPlanes + BN - 1) / BN, (numActOut + BM - 1) / BM);
   // SgemmV6<<<gridDim, blockDim, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
   
-  // half alpha = 1.0f;
-  // half beta = 0.0f;
-  // cublasHandle_t handle;
-  // cublasStatus_t status = cublasCreate(&handle);
-  // if (status != CUBLAS_STATUS_SUCCESS) {
-  //   std::cerr << "!!!! CUBLAS initialization error\n";
-  // }
-  // cublasHgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, numOutPlanes, numActOut, numInPlanes, &alpha, 
-  //             weight_ptr+filter_offset*numInPlanes*numOutPlanes, numOutPlanes, 
-  //             features_ptr, numInPlanes, &beta,
-  //             output_ptr, numOutPlanes);
+  half alpha = 1.0f;
+  half beta = 0.0f;
+  cublasHandle_t handle;
+  cublasStatus_t status = cublasCreate(&handle);
+  if (status != CUBLAS_STATUS_SUCCESS) {
+    std::cerr << "!!!! CUBLAS initialization error\n";
+  }
+  cublasHgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, numOutPlanes, numActOut, numInPlanes, &alpha, 
+              weight_ptr+filter_offset*numInPlanes*numOutPlanes, numOutPlanes, 
+              features_ptr, numInPlanes, &beta,
+              output_ptr, numOutPlanes);
+  //备注：此处还需要添加一个对结果的转置操作!!!
 
 }
 

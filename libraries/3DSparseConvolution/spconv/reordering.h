@@ -18,8 +18,8 @@
 
 namespace spconv {
 void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
-                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
-                          void* stream);
+                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset/*, 
+                          void* stream*/);
 void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
                         nv::Tensor indices, int size, int indice_offset,
                         void* stream);
