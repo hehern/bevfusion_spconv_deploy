@@ -1,4 +1,5 @@
 #include "node_transpose.hpp"
+#include "normal_op/op_transpose.h"
 
 namespace spconv {
 
@@ -6,6 +7,31 @@ Transpose::Transpose(const std::string& name, SparseDTensor* x, const std::vecto
   input_.push_back(x);
   output_.push_back(new SparseDTensor(output_name, this));
   name_ = name;
+
+  dims_ = dims;//0, 1, 4, 2, 3
+}
+
+void Transpose::forward(void *stream) {
+  assert(input_[0]->grid_size().size() == dims_.size());
+  // step1:转换数据保存的顺序[1, 128, 180, 180, 2]->[1, 128, 2, 180, 180]
+  std::vector<int> input_shape = input_[0]->grid_size();
+  output_shape_.resize(input_shape.size());
+  for (int i=0; i<input_shape.size(); i++) {
+    output_shape_[i] = input_shape[dims_[i]];
+  }
+
+  int64_t act_num = input_[0]->features().shape[0];
+  int64_t voxel_dim = input_[0]->features().shape[1];
+  int64_t indices_dim = input_[0]->indices().shape[1];
+  nv::Tensor output_buffer = nv::Tensor::create(output_shape_, nv::DataType::Float16);
+  output_buffer.memset(0, stream);
+  transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里主需要转换那些有效voxel就可以了
+
+  // step2:填充数据
+  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), input_[0]->features().ptr<unsigned short>(),
+                       input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
+                       output_shape_, stream);//这里indices不变，还是维持之前的xyz顺序
+  std::cout << name_ << ", forward done!" << std::endl;
 }
 
 }// namespace spconv

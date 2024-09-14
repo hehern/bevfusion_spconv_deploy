@@ -13,11 +13,11 @@ class Transpose : public INode {
             const std::vector<int64_t>& dims, 
             const std::string& output_name);
 
-  void forward(void *stream) override {
-    //
-    std::cout << name_ << ", forward done!" << std::endl;
-  }
+  void forward(void *stream) override;
 
+ private:
+  std::vector<int64_t> dims_;//0, 1, 4, 2, 3
+  std::vector<int> output_shape_;//eg:1, 128, 2, 180, 180
 };
 
 }// namespace spconv

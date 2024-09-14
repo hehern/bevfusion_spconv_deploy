@@ -13,11 +13,11 @@ class Reshape : public INode {
           const std::vector<int64_t>& shape, 
           const std::string& output_name);
 
-  void forward(void *stream) override {
-    //
-    std::cout << name_ << ", forward done!" << std::endl;
-  }
+  void forward(void *stream) override;
 
+  private:
+    std::vector<int64_t> dims_;
+    std::vector<int> output_shape_;//eg:1, 256, 180, 180
 };
 
 }// namespace spconv

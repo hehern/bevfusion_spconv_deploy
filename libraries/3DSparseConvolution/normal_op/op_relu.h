@@ -1,5 +1,5 @@
-#ifndef __SPCONV_NORMAL_ADD_OP_HPP__
-#define __SPCONV_NORMAL_ADD_OP_HPP__
+#ifndef __SPCONV_NORMAL_OP_RELU_HPP__
+#define __SPCONV_NORMAL_OP_RELU_HPP__
 #include "tensor.hpp"
 
 namespace spconv {
