@@ -10,7 +10,10 @@ Dense::Dense(const std::string& name, SparseDTensor* x, const std::string& forma
   name_ = name;
 
   input_spatial_shape_ = input_spatial_shape;//eg:180, 180, 2
-  output_shape_ = output_shape;//eg:1, 128, 180, 180, 2
+  output_shape_ = output_shape;
+  for(const auto& i : output_shape) {
+    output_shape_64_.push_back(i);//eg:1, 128, 180, 180, 2
+  }
 }
 
 void Dense::forward(void *stream) {
@@ -24,7 +27,7 @@ void Dense::forward(void *stream) {
   dense_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_spatial_shape_, stream);
 
   // step2:
-  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<unsigned short>(),
+  output_[0]->set_data(output_shape_64_, input_[0]->get_features_dtype(), output_buffer.ptr<unsigned short>(),
                        input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
                        output_shape_, stream);
   std::cout << name_ << ", forward done!" << std::endl;

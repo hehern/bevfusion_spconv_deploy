@@ -45,19 +45,13 @@ class SCNImplement : public SCN {
       (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
       nv::DataType::Int32, (void*)voxelization_->indices(), voxelization_->grid_size(), stream);
 
-    native_scn_output_ = native_scn_->output(0);
-    return native_scn_output_ == nullptr ? nullptr : (nvtype::half*)native_scn_output_->features().data->data;
+    return native_scn_->output(0)->features().ptr<nvtype::half>();
   }
-
-  // virtual std::vector<int64_t> shape() override {
-  //   return native_scn_output_ == nullptr ? std::vector<int64_t>() : native_scn_output_->grid_size();
-  // }
 
  private:
   SCNParameter param_;
   std::shared_ptr<Voxelization> voxelization_;//体素化
-  std::shared_ptr<spconv::Engine> native_scn_;//自定义的引擎（load onnx之后，手动构建的engine）
-  spconv::SparseDTensor* native_scn_output_ = nullptr;
+  std::shared_ptr<spconv::Engine> native_scn_;//自定义的引擎（load onnx之后，手动构建的engine
 };
 
 std::shared_ptr<SCN> create_scn(const SCNParameter& param) {

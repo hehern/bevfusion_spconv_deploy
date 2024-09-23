@@ -18,6 +18,7 @@ class Transpose : public INode {
  private:
   std::vector<int64_t> dims_;//0, 1, 4, 2, 3
   std::vector<int> output_shape_;//eg:1, 128, 2, 180, 180
+  std::vector<int64_t> output_shape_64_;//eg:1, 128, 2, 180, 180
 };
 
 }// namespace spconv

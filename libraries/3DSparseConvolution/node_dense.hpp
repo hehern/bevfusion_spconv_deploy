@@ -17,6 +17,7 @@ class Dense : public INode {
  private:
   std::vector<int> input_spatial_shape_;//eg:180, 180, 2
   std::vector<int> output_shape_;//eg:1, 128, 180, 180, 2
+  std::vector<int64_t> output_shape_64_;//eg:1, 128, 180, 180, 2
 
 };
 
