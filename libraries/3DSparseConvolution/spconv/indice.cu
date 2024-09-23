@@ -24,6 +24,10 @@
 
 namespace spconv {
 
+__global__ void printNumber(int *number) {
+    // 假设我们只打印一个线程
+    printf("Number on GPU: %d, %d, %d\n", number[0], number[1], number[2]);
+}
 
 /*
   indicesIn:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
@@ -131,11 +135,6 @@ int create_conv_indice_pair_p2_cuda(
   return numAct;
 }
 
-__global__ void printNumber(int *number) {
-    // 假设我们只打印一个线程
-    printf("Number on GPU: %d\n", *number);
-}
-
 nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
 
   int64_t num = src_tensor.shape[0];
@@ -146,10 +145,10 @@ nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
   thrust::device_vector<int> d_output(src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
 
   auto end_unique = thrust::unique(thrust::device, d_output.begin(), d_output.end());
-  auto unique_count = thrust::distance(d_output.begin(), end_unique);//不重复元素个数
+  auto unique_count = thrust::distance(d_output.begin(), end_unique)-1;//不重复元素个数
 
-  nv::Tensor tar_tensor = nv::Tensor::from_data(thrust::raw_pointer_cast(d_output.data()), std::vector<int64_t>{unique_count}, nv::DataType::Int32);
-  std::cout << "unique_count = " << unique_count << std::endl;
+  nv::Tensor tar_tensor = nv::Tensor::from_data(thrust::raw_pointer_cast(d_output.data()+1), std::vector<int64_t>{unique_count}, nv::DataType::Int32);//这里为什么会有-1?
+  // std::cout << "unique_count = " << unique_count << std::endl;
   // std::cout << "tar_tensor.size(0) = " << tar_tensor.size(0) << std::endl;
   // printNumber<<<1, 1>>>(tar_tensor.ptr<int>());
   // tar_tensor.to_host_(stream);
@@ -157,4 +156,22 @@ nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
   return tar_tensor;
 }
 
+void judgeIndicesOutshape(nv::Tensor indices,
+                          std::vector<int> outSpatialShape,
+                          void* stream) {
+  // 判断indices值是否在outSpatialShape范围内
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  int ndim = outSpatialShape.size();//3
+  auto numActIn = indices.size(0);//active voxel num: n
+
+  if (numActIn == 0)//当前帧没有有效体素栅格,返回
+    return;
+
+  int* indices_ptr = indices.ptr<int>();//(batch,x,y,z)
+  nv::Tensor ou = nv::Tensor::create(std::vector<int32_t>{ndim}, nv::DataType::Int32);
+  checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), ndim*sizeof(int), cudaMemcpyHostToDevice, _stream));
+
+  cuda_linear_launch(judgeIndicesOutshapeKernel, _stream, numActIn, indices_ptr, ou.ptr<int>());
+ return;
+}
 } // namespace spconv

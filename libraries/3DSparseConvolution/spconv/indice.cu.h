@@ -37,7 +37,7 @@ __global__ void prepareSubMGridKernel(
   const auto& voxel_idx = indicesIn[4*ix+1];//indicesIn.shape = {n,4}
   const auto& voxel_idy = indicesIn[4*ix+2];
   const auto& voxel_idz = indicesIn[4*ix+3];
-  size_t index = (voxel_idz * outSpatialShape[1] + voxel_idy) * outSpatialShape[0] + voxel_idx;//(batch_id,x,y,z) --> index
+  size_t index = (voxel_idx * outSpatialShape[1] + voxel_idy) * outSpatialShape[2] + voxel_idz;//(batch_id,x,y,z) --> index
   gridsOut[index] = ix;//填充active voxel的序号[0, numActIn-1],index为从三维坐标index转换为一维index
 }
 
@@ -83,7 +83,7 @@ __global__ void getSubMIndicePairsKernel3(
           if (point[1] >= 0 && point[1] < outSpatialShape[1] && 
               point[2] >= 0 && point[2] < outSpatialShape[2] && 
               point[0] >= 0 && point[0] < outSpatialShape[0]) {
-            index = (indicesIn[4*ix+3] * outSpatialShape[1] + indicesIn[4*ix+2]) * outSpatialShape[0] + indicesIn[4*ix+1];//(batch_id,x,y,z) --> index,三维index转换为一维index
+            index = (indicesIn[4*ix+1] * outSpatialShape[1] + indicesIn[4*ix+2]) * outSpatialShape[2] + indicesIn[4*ix+3];//(batch_id,x,y,z) --> index,三维index转换为一维index
   
             if (gridsOut[index] != -1) {//active voxel对应的位置,这里肯定！=-1，因为前面prepareSubMGridKernel已经赋值过了
               // for subm: indicePairs[0, i] = indicePairs[1, kernelVolume - i - 1]
@@ -162,6 +162,9 @@ __device__ int getValidOutPos(const int *input_pos,
     }
 
     out[pointCounter * (NDim + 1) + NDim] = offset;//out[i][Ndim]存储于输入相作用kernel的偏移(offset)（即用卷积核中的那个权重计算）
+    // if (offset == -1) {
+    //   printf("offset == -1, input_pos: %d, %d, %d\n", input_pos[0], input_pos[1], input_pos[2]);
+    // }
     if (valid)
       ++pointCounter;//++
     counter[NDim - 1] += 1;//counter[2]为啥一直在++？
@@ -205,7 +208,7 @@ __global__ void prepareIndicePairsKernel(
   int index, tmp;
 
   numValidPoints = getValidOutPos(indicesIn + ix * (NDim + 1) + 1, kernelSize, stride, padding, dilation, outSpatialShape, validPoints);//validPoints为numValidPoints*NDim，前三个维度相当于Pout，最后一个维度保存的是conv offset
-  // printf("numValidPoints: %d, index: %d\n", numValidPoints, index);
+  // printf("ix: %d, numValidPoints: %d\n", ix, numValidPoints);
   // printf("index: x:%d, y:%d, z:%d, outSpatialShape:%d, %d, %d\n", indicesInPtr[1], indicesInPtr[2], indicesInPtr[3], outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]);
   #pragma unroll
   for (int i = 0; i < numValidPoints; ++i) {
@@ -217,9 +220,12 @@ __global__ void prepareIndicePairsKernel(
     auto offset = pointPtr[NDim];//offset
     int oldNum = atomicAdd(indiceNum + offset, int(1));//indiceNum对应位置++，即rulebook中count++
     tmp = offset * numActIn + oldNum;
+    // if (tmp >= 2*kernelVolume*numActIn || tmp >= kernelVolume*numActIn+1) {
+    //   printf("tmp: %d. out of range, numActIn: %d, offset: %d, oldNum: %d\n", tmp, int(numActIn), offset, oldNum);//tmp: 1318653139. out of range, numActIn: 17367, offset: -1, oldNum: 1318670506,存在非法offset
+    // }
     indicePairs[tmp] = ix;//indicePairs(0, offset, oldNum) = ix;
 
-    index = (voxel_idz * outSpatialShape[1] + voxel_idy) * outSpatialShape[0] + voxel_idx;//index为对应的输出grid中的一维index
+    index = (voxel_idx * outSpatialShape[1] + voxel_idy) * outSpatialShape[2] + voxel_idz;//index为对应的输出grid中的一维index
     indicePairUnique[tmp] = index;//offset * numActIn + oldNum 位置保存输出grid栅格序号
 
     tmp = (kernelVolume + offset) * numActIn + oldNum;
@@ -252,6 +258,16 @@ __global__ void assignGridAndIndiceOutKernel(
     index -= output[i];
     index /= outSpatialShape[i];
   }
+  
+  // int voxel_x = output[0];
+  // int voxel_y = output[1];
+  // int voxel_z = output[2];
+  // if((voxel_x < 0 || voxel_x >= outSpatialShape[0]) ||
+  //    (voxel_y < 0 || voxel_y >= outSpatialShape[1]) ||
+  //    (voxel_z < 0 || voxel_z >= outSpatialShape[2])) {
+  //     printf("assignGridAndIndiceOutKernel out of shape, voxel_x:%d, voxel_y:%d, voxel_z:%d, outSpatialShape[0]:%d, outSpatialShape[1]:%d, outSpatialShape[2]:%d, indicePairUnique[ix];%d\n",
+  //             voxel_x, voxel_y, voxel_z, outSpatialShape[0], outSpatialShape[1], outSpatialShape[2], indicePairUnique[ix]);
+  // }
   indicesOut[ix * (NDim + 1)] = 0;//batch_size就填0吧，其实不用
 }
 
@@ -276,6 +292,25 @@ assignIndicePairsKernel(size_t numActIn,
     if (index > -1) {
       indicePairsOut[tmp] = gridsOut[index];
     }
+  }
+}
+
+__global__ void
+judgeIndicesOutshapeKernel(size_t numActIn,
+                           int* indicesIn,
+                           const int* outSpatialShape) {
+  int ix = cuda_linear_index;
+  if (ix >= numActIn) return;
+
+  int* cur_indice = indicesIn + ix * 4 + 1;//x
+  int voxel_x = cur_indice[0];
+  int voxel_y = cur_indice[1];
+  int voxel_z = cur_indice[2];
+  if ((voxel_x < 0 || voxel_x >= outSpatialShape[0]) ||
+      (voxel_y < 0 || voxel_y >= outSpatialShape[1]) ||
+      (voxel_z < 0 || voxel_z >= outSpatialShape[2])) {
+        printf("judgeIndicesOutshapeKernel out of shape, voxel_x:%d, voxel_y:%d, voxel_z:%d, outSpatialShape[0]:%d, outSpatialShape[1]:%d, outSpatialShape[2]:%d\n",
+               voxel_x, voxel_y, voxel_z, outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]);
   }
 }
 

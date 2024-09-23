@@ -137,7 +137,7 @@ static __global__ void voxelization_kernel(size_t points_size, const half *point
     return;
   }
 
-  unsigned int voxel_offset = (voxel_idz * param.grid_size.y + voxel_idy) * param.grid_size.x + voxel_idx;//一维index
+  unsigned int voxel_offset = (voxel_idz * param.grid_size.y + voxel_idy) * param.grid_size.x + voxel_idx;//一维index,zyx顺序???
 
   // scatter to voxels
   unsigned int voxel_id = lookup_hash_table(voxel_offset, points_size * 2 * 2, hash_table);//id序号，一般从0-d_real_num_voxels_

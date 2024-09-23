@@ -12,6 +12,7 @@ Transpose::Transpose(const std::string& name, SparseDTensor* x, const std::vecto
 }
 
 void Transpose::forward(void *stream) {
+  std::cout << name_ << ", forward begin:" << std::endl;
   assert(input_[0]->grid_size().size() == dims_.size());
   // step1:转换数据保存的顺序[1, 128, 180, 180, 2]->[1, 128, 2, 180, 180]
   std::vector<int> input_shape = input_[0]->grid_size();
@@ -25,10 +26,10 @@ void Transpose::forward(void *stream) {
   int64_t indices_dim = input_[0]->indices().shape[1];
   nv::Tensor output_buffer = nv::Tensor::create(output_shape_, nv::DataType::Float16);
   output_buffer.memset(0, stream);
-  transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里主需要转换那些有效voxel就可以了
+  // transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里主需要转换那些有效voxel就可以了
 
   // step2:填充数据
-  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), input_[0]->features().ptr<unsigned short>(),
+  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<unsigned short>(),
                        input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
                        output_shape_, stream);//这里indices不变，还是维持之前的xyz顺序
   std::cout << name_ << ", forward done!" << std::endl;

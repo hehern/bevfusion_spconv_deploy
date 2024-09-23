@@ -13,8 +13,8 @@ __global__ void denseKernel(int64_t act_num, const half* features, const int* in
   const auto& voxel_idx = indice[1];
   const auto& voxel_idy = indice[2];
   const auto& voxel_idz = indice[3];
-  int64_t index = (voxel_idz * input_spatial_shape[1] + voxel_idy) * input_spatial_shape[0] + voxel_idx;//(batch_id,x,y,z) --> index
-  int64_t volume = input_spatial_shape[0] * input_spatial_shape[1] * input_spatial_shape[2];
+  int64_t index = (voxel_idx * input_spatial_shape[1] + voxel_idy) * input_spatial_shape[2] + voxel_idz;//(batch_id,x,y,z) --> index
+  int64_t volume = input_spatial_shape[0] * input_spatial_shape[1] * input_spatial_shape[2];//
 
   auto feature = features + ix*voxel_dim;
   #pragma unroll
@@ -31,7 +31,9 @@ void dense_cuda(nv::Tensor features, nv::Tensor indices, nv::Tensor output,
   const int* input1_ptr = indices.ptr<int>();
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  cuda_linear_launch(denseKernel, _stream, act_num, input0_ptr, input1_ptr, output_ptr, voxel_dim, indices_dim, input_spatial_shape.data());
+  nv::Tensor in_shape = nv::Tensor::create(std::vector<int32_t>{int(input_spatial_shape.size())}, nv::DataType::Int32);
+  checkRuntime(cudaMemcpyAsync(in_shape.ptr<int>(), input_spatial_shape.data(), input_spatial_shape.size()*sizeof(int), cudaMemcpyHostToDevice, _stream));
+  cuda_linear_launch(denseKernel, _stream, act_num, input0_ptr, input1_ptr, output_ptr, voxel_dim, indices_dim, in_shape.ptr<int>());
 }
 
 

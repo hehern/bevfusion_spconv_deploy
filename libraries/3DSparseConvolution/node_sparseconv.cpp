@@ -68,20 +68,22 @@ void SparseConvolution::forward(void *stream) {
   // step1:查找/计算rulebook
   std::vector<nv::Tensor> datas = SparseDTensor::find_indice_pair(rulebook_);
   if (datas.empty()) {
-    std::cout << "no rulebook" << std::endl;
+    // std::cout << "no rulebook" << std::endl;
     datas = getIndicePairs(input_[0]->indices(), out_spatial_shape_, input_spatial_shape_, kernel_size_, stride_, padding_, dilation_, submanifold_, stream);
     SparseDTensor::add_rulebook(rulebook_, datas);
-    std::cout << "add rulebook done" << std::endl;
+    // std::cout << "add rulebook done" << std::endl;
   }
   // step2:conv计算
-  std::cout << "SparseConvolution::forward features = " << input_[0]->features().size(0) << "," << input_[0]->features().size(1) << std::endl;
+  // std::cout << "SparseConvolution::forward features = " << input_[0]->features().size(0) << "," << input_[0]->features().size(1) << std::endl;
   nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
+
+  // judgeIndicesOutshape(datas[0], out_spatial_shape_, stream);
 
   // step3:保存输出
   std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};
   std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
-  std::cout << "features_shape = " << datas[0].shape[0] << "," << weight_shape_[0] << std::endl;
-  std::cout << "indices_shape = " << datas[0].shape[0] << "," << datas[0].shape[1] << std::endl;
+  // std::cout << "features_shape = " << datas[0].shape[0] << "," << weight_shape_[0] << std::endl;
+  // std::cout << "indices_shape = " << datas[0].shape[0] << "," << datas[0].shape[1] << std::endl;
   output_[0]->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<half>(), 
                        indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
                        out_spatial_shape_, stream);

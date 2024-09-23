@@ -9,8 +9,8 @@ Dense::Dense(const std::string& name, SparseDTensor* x, const std::string& forma
   output_.push_back(new SparseDTensor(output_name, this));
   name_ = name;
 
-  input_spatial_shape_ = input_spatial_shape;
-  output_shape_ = output_shape;
+  input_spatial_shape_ = input_spatial_shape;//eg:180, 180, 2
+  output_shape_ = output_shape;//eg:1, 128, 180, 180, 2
 }
 
 void Dense::forward(void *stream) {
