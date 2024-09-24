@@ -45,6 +45,14 @@ class SCNImplement : public SCN {
       (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
       nv::DataType::Int32, (void*)voxelization_->indices(), voxelization_->grid_size(), stream);
 
+    // auto featuresHost = native_scn_->output(0)->features().to_host(stream);
+    // auto f_h_ptr = featuresHost.ptr<half>();
+    // printf("features numel = %d\n", featuresHost.numel);
+    // for(size_t i=0; i<featuresHost.numel; i++) {
+    //   float f_f = __half2float(f_h_ptr[i]);
+    //   printf("%f,", f_f);//有很多nan点，有点奇怪，哪里来的？
+    // }
+    // printf("\n");
     return native_scn_->output(0)->features().ptr<nvtype::half>();
   }
 

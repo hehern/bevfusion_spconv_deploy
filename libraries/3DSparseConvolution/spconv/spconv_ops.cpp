@@ -124,7 +124,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   if (subM) { // the center index of subm conv don't need gather and scatter
     // add.
     // timer_.start(_stream);
-    matrix_multiply_cuda(features, filters, output, numActOut, numOutPlanes, numInPlanes, indicePairMaxOffset/*, stream*/);
+    matrix_multiply_cuda(features, filters, output, numActOut, numOutPlanes, numInPlanes, indicePairMaxOffset, stream);
     // timer_.stop("matrix_multiply_cuda");
 
     // get indice pair second max size based on subM symmetric property
@@ -157,7 +157,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
     sparse_gather_cuda(inputBuffer, features, indicePairs, nHot, i*numActIn, stream);//根据indicePairs中的vin查找到对应的输入voxels的值，并保存在inputBuffer
     // timer_.stop("sparse_gather_cuda");
     // timer_.start(_stream);
-    matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i/*, stream*/);//gemm
+    matrix_multiply_cuda(inputBuffer, filters, outputBuffer, nHot, numOutPlanes, numInPlanes, i, stream);//gemm
     // timer_.stop("matrix_multiply_cuda");
     // timer_.start(_stream);
     sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActIn, stream);//将结果填充到output中去
