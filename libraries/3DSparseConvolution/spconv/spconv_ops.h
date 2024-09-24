@@ -41,5 +41,7 @@ nv::Tensor indiceConv(nv::Tensor features,
                       int64_t numActOut,
                       bool subM, void* stream);
 
+void printFeatures(nv::Tensor features, void* stream);
+
 } // namespace spconv
 #endif

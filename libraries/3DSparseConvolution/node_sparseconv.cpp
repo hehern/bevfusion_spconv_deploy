@@ -23,7 +23,6 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   // 参数初始化
   weight_shape_ = weight_shape;//[out_channel, kernel_size_x, kernel_size_y, kernel_size_z, in_channel]
   weight_dynamic_ranges_ = weight_dynamic_ranges;
-  bias_ = bias;
   bias_shape_ = bias_shape;
   activation_ = activation;
   kernel_size_ = kernel_size;
@@ -60,11 +59,15 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
       }  
     }  
   }
-  weight_ = nv::Tensor::from_data(&result[0], std::vector<int64_t>{kernel_x*kernel_y*kernel_z, in_channel, out_channel}, nv::DataType::Float16, false);//转换为gpu上的fp16类型
+  weight_ = nv::Tensor::from_data(&result[0], std::vector<int64_t>{kernel_x*kernel_y*kernel_z, in_channel, out_channel}, nv::DataType::Float16, false);
+  bias_ = nv::Tensor::from_data(&bias[0], bias_shape, nv::DataType::Float16, false);
 }
 
 void SparseConvolution::forward(void *stream) {
   std::cout << name_ << " forward:" << std::endl;
+  // if (name_ == "conv8") {
+  //   printFeatures(input_[0]->features(), stream);
+  // }
   // step1:查找/计算rulebook
   std::vector<nv::Tensor> datas = SparseDTensor::find_indice_pair(rulebook_);
   if (datas.empty()) {
@@ -74,8 +77,10 @@ void SparseConvolution::forward(void *stream) {
     // std::cout << "add rulebook done" << std::endl;
   }
   // step2:conv计算
-  // std::cout << "SparseConvolution::forward features = " << input_[0]->features().size(0) << "," << input_[0]->features().size(1) << std::endl;
+  weight_.to_device_(stream);
+  bias_.to_device_(stream);
   nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
+  addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
 
   // judgeIndicesOutshape(datas[0], out_spatial_shape_, stream);
 

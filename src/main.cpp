@@ -261,7 +261,7 @@ int main(int argc, char** argv) {
   // }
 
   // visualize and save to jpg
-  // visualize(bboxes, lidar_points, images, lidar2image, "build/cuda-bevfusion.jpg", stream);
+  visualize(bboxes, lidar_points, images, lidar2image, "build/cuda-bevfusion.jpg", stream);
 
   // destroy memory
   free_images(images);

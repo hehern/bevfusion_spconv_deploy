@@ -23,6 +23,16 @@ void add_cuda(nv::Tensor features0, nv::Tensor features1, nv::Tensor output,
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
   cuda_linear_launch(addKernel, _stream, act_num, input0_ptr, input1_ptr, output_ptr, voxel_dim);
+  // 打印输出
+  // checkRuntime(cudaStreamSynchronize(_stream));
+  // printf("features0 numel = %d, features1 numel = %d, act_num = %d\n", int(features0.numel), int(features1.numel), int(act_num));
+  // auto outputHost = output.to_host(stream);
+  // auto f_h_ptr = outputHost.ptr<half>();
+  // for(size_t i=0; i<outputHost.numel; i++) {
+  //   float f_f = __half2float(f_h_ptr[i]);
+  //   printf("%f,", f_f);
+  // }
+  // printf("\n");
 }
 
 

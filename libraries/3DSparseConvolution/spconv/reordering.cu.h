@@ -251,7 +251,22 @@ __global__ void scatterAddGenericKernel(int size, half *outFeatures, const half 
   }
 }
 
+__global__ void addBiasAndReluKernel(int num_act, half* features, const half* bias,
+                                     int numPlanes, bool relu) {
+  int ix = cuda_linear_index;
+  if (ix >= num_act) return;
 
+  auto feature = features + ix*numPlanes;
+
+  #pragma unroll
+  for (int ilp = 0; ilp < numPlanes; ilp++) {
+    feature[ilp] += bias[ilp];
+    if (relu) {
+      feature[ilp] = feature[ilp] > __half(0.0) ? feature[ilp] : __half(0.0);
+    }
+  }
+  
+}
 
 } // namespace spconv
 

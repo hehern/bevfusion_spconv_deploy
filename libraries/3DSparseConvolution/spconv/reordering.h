@@ -27,6 +27,8 @@ void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
                              nv::Tensor indices, int size, int indice_offset,
                              void* stream);
 
+void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,
+                    bool Relu, void* stream);
 } // namespace spconv
 
 #endif

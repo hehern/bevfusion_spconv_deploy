@@ -71,11 +71,7 @@ void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
   half* buffer_ptr = buffer.ptr<half>();
   half* features_ptr = features.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
-  // checkRuntime(cudaStreamSynchronize(_stream));
-  // std::cout << "sparse_gather_cuda begin" << std::endl;
   cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes, num_act);
-  // checkRuntime(cudaStreamSynchronize(_stream));
-  // std::cout << "sparse_gather_cuda end" << std::endl;
 }
 
 void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
@@ -93,4 +89,15 @@ void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
 
 }
 
+void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,
+                    bool Relu, void* stream) {
+  int num_act = features.size(0);
+  int numPlanes = features.size(1);//eg:16
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+
+  half* features_ptr = features.ptr<half>();
+  half* bias_ptr = bias.ptr<half>();
+  cuda_linear_launch(addBiasAndReluKernel, _stream, num_act, features_ptr, bias_ptr, numPlanes, Relu);
+  
+}
 } // namespace spconv

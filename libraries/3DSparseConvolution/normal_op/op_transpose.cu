@@ -57,6 +57,15 @@ void transpose_cuda(nv::Tensor features, nv::Tensor indices, nv::Tensor output,
   // printf("input_spatial_shape: %d, %d, %d, %d, %d\n", input_spatial_shape[0], input_spatial_shape[1], input_spatial_shape[2], input_spatial_shape[3], input_spatial_shape[4]);
   // printf("output_shape: %d, %d, %d, %d, %d\n", output_shape[0], output_shape[1], output_shape[2], output_shape[3], output_shape[4]);
   cuda_linear_launch(permuteKernel, _stream, act_num, input0_ptr, input1_ptr, output_ptr, voxel_dim, indices_dim, in_shape.ptr<int>(), ou_shape.ptr<int>());
+  // 打印输出
+  // checkRuntime(cudaStreamSynchronize(_stream));
+  // auto featuresHost = features.to_host(stream);
+  // auto f_h_ptr = featuresHost.ptr<half>();
+  // for(size_t i=0; i<featuresHost.numel; i++) {
+  //   float f_f = __half2float(f_h_ptr[i]);
+  //   printf("%f,", f_f);//有很多nan点，有点奇怪，哪里来的？
+  // }
+  // printf("\n");
 }
 
 

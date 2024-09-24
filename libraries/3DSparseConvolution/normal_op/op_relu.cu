@@ -12,11 +12,10 @@ __global__ void reluKernel(int64_t act_num, const half *input, half *output, int
   auto index = ix * voxel_dim;
   #pragma unroll
   for (int i = 0; i < voxel_dim; i++) {
-    // output[index+i] = fmaxf(0.0f, input[index+i]);//这里需要注意一下，传入的是fp16的数据，需要有类型转换
-    // output[index+i] = input[index+i]>0 ? input[index+i] : 0;
-    float fx = __half2float(input[index+i]);
-    float result = fx > 0.0f ? fx : 0.0f; 
-    output[index+i] = __float2half(result);
+    // float fx = __half2float(input[index+i]);
+    // float result = fx > 0.0f ? fx : 0.0f; 
+    // output[index+i] = __float2half(result);
+    output[index+i] = input[index+i] > __half(0.0) ? input[index+i] : __half(0.0);
   }
 }
 

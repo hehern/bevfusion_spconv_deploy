@@ -31,9 +31,9 @@ class SparseConvolution : public INode {
   unsigned short out_channels;
   // spconv参数
   nv::Tensor weight_;
+  nv::Tensor bias_;
   std::vector<int> weight_shape_;
   std::vector<float> weight_dynamic_ranges_;
-  std::vector<unsigned short> bias_;
   std::vector<int> bias_shape_;
   std::string activation_;
   std::vector<int> kernel_size_;
