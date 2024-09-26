@@ -53,11 +53,11 @@ getIndicePairs(nv::Tensor indices,
   msg += "must less than std::numeric_limits<int>::max() = 2e9";
   TV_ASSERT_RT_ERR(outputVolume < std::numeric_limits<int64_t>::max(), msg);
   nv::Tensor indicePairs = nv::Tensor::create(std::vector<int64_t>{2, kernelVolume, numAct}, nv::DataType::Int32);//shape:{2,27,n}
-  indicePairs.memset(-1, stream);
+  indicePairs.fill<int>(-1);
   nv::Tensor indiceNum = nv::Tensor::create(std::vector<int64_t>{kernelVolume}, nv::DataType::Int32);//shape:{27}
-  indiceNum.memset(0, stream);
+  indiceNum.fill<int>(0);
   nv::Tensor gridOut = nv::Tensor::create(std::vector<int64_t>{outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
-  gridOut.memset(-1, stream);
+  gridOut.fill<int>(-1);
   nv::Tensor ou = nv::Tensor::create(std::vector<int64_t>{NDim}, nv::DataType::Int32);//output_shape
   checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), outSpatialShape.size()*sizeof(int), cudaMemcpyHostToDevice, (cudaStream_t)stream));
 
@@ -178,7 +178,11 @@ void printFeatures(nv::Tensor features, void* stream) {
   printf("features numel = %d\n", featuresHost.numel);
   for(size_t i=0; i<featuresHost.numel; i++) {
     float f_f = __half2float(f_h_ptr[i]);
-    printf("%f,", f_f);//有很多nan点，有点奇怪，哪里来的？
+    printf("%f,", f_f);
+    if ((i+1)%features.shape[1] == 0) {
+      printf("\n");
+    }
+
   }
   printf("\n");
 }
