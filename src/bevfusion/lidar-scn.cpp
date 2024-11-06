@@ -40,6 +40,29 @@ class SCNImplement : public SCN {
 
   virtual const nvtype::half* forward(const nvtype::half* points, unsigned int num_points, void* stream) override {//在gpu上保存的点云、点个数
     voxelization_->forward(points, num_points, stream, param_.order);//点云体素化,输出：有效voxel个数（real_num_voxels_）、每个voxel中点平均特征（d_voxel_features_）、特征voxel对应的每个voxel的xyz index
+    // 打印feature和indices
+    // auto f_h_ptr = (half*)(voxelization_->host_features());
+    // auto size = voxelization_->num_voxels() * voxelization_->voxel_dim();
+    // printf("features size = %d\n", size);
+    // for(size_t i=0; i<size; i++) {
+    //   float f_f = __half2float(f_h_ptr[i]);
+    //   printf("%f,", f_f);
+    //   if ((i+1)%voxelization_->voxel_dim() == 0) {
+    //     printf("\n");
+    //   }
+    // }
+    // printf("--------\n");
+
+    // auto ind_h_ptr = (unsigned int*)(voxelization_->host_indices());
+    // auto size_ind = voxelization_->num_voxels() * voxelization_->indices_dim();
+    // printf("indices size = %d\n", size);
+    // for(size_t i=0; i<size_ind; i++) {
+    //   printf("%d,", ind_h_ptr[i]);
+    //   if ((i+1)%voxelization_->indices_dim() == 0) {
+    //     printf("\n");
+    //   }
+    // }
+    // printf("--------\n");
     native_scn_->forward(
       std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->voxel_dim()}, nv::DataType::Float16,
       (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},

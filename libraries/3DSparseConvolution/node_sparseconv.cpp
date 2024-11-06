@@ -65,9 +65,12 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
 
 void SparseConvolution::forward(void *stream) {
   std::cout << name_ << " forward:" << std::endl;
-  if (name_ == "conv1") {
-    printFeatures(input_[0]->features(), stream);
-  }
+  // if (name_ == "conv0") {
+  //   printFeatures(input_[0]->features(), stream);
+  // }
+  // if (name_ == "conv0") {
+  //   printFeatures(weight_, stream);
+  // }
   // step1:查找/计算rulebook
   std::vector<nv::Tensor> datas = SparseDTensor::find_indice_pair(rulebook_);
   if (datas.empty()) {
@@ -83,6 +86,9 @@ void SparseConvolution::forward(void *stream) {
   addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
 
   // judgeIndicesOutshape(datas[0], out_spatial_shape_, stream);
+  // if (name_ == "conv0") {
+  //   printFeatures(result, stream);
+  // }
 
   // step3:保存输出
   std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};

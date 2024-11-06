@@ -63,7 +63,9 @@ class Voxelization {
   virtual unsigned int indices_dim() = 0;
   virtual std::vector<int> grid_size() = 0;
   virtual const void* indices() = 0;
+  virtual const void* host_indices() = 0;
   virtual const void* features() = 0;
+  virtual const void* host_features() = 0;
   virtual CoordinateOrder order() = 0;
 };
 
