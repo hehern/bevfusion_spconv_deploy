@@ -23,7 +23,7 @@
 
 #include <cuda_runtime.h>
 #include <string.h>
-
+#include <dlfcn.h>
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -202,6 +202,9 @@ std::shared_ptr<bevfusion::Core> create_core(const std::string& model, const std
   transbbox.post_center_range_end = {61.2, 61.2, 10.0};
   transbbox.voxel_size = {0.075, 0.075};
   transbbox.model = nv::format("model/%s/build/head.bbox.plan", model.c_str());
+
+  // if you got an inaccurate boundingbox result please turn on the layernormplugin plan.
+  // transbbox.model = nv::format("model/%s/build/head.bbox.layernormplugin.plan", model.c_str());
   transbbox.confidence_threshold = 0.12f;
   transbbox.sorted_bboxes = true;
 
@@ -225,6 +228,7 @@ int main(int argc, char** argv) {
   if (argc > 1) data      = argv[1];
   if (argc > 2) model     = argv[2];
   if (argc > 3) precision = argv[3];
+  dlopen("libcustom_layernorm.so", RTLD_NOW);
 
   auto core = create_core(model, precision);//参数初始化以及创建CoreImplement
   if (core == nullptr) {
@@ -256,9 +260,9 @@ int main(int argc, char** argv) {
       core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
 
   // evaluate inference time
-  // for (int i = 0; i < 5; ++i) {//这里为什么要执行5次？？？
-  //   core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
-  // }
+  for (int i = 0; i < 5; ++i) {
+    core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
+  }
 
   // visualize and save to jpg
   visualize(bboxes, lidar_points, images, lidar2image, "build/cuda-bevfusion.jpg", stream);
@@ -266,5 +270,7 @@ int main(int argc, char** argv) {
   // destroy memory
   free_images(images);
   checkRuntime(cudaStreamDestroy(stream));
+
+  printf("[Warning]: If you got an inaccurate boundingbox result please turn on the layernormplugin plan. (main.cpp:207)\n");
   return 0;
 }

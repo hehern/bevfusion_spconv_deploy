@@ -54,6 +54,7 @@ struct VoxelizationParameter {
 
 class Voxelization {
  public:
+  virtual ~Voxelization() = default;
   // points and voxels must be of half-float device pointer
   virtual void forward(const nvtype::half* points, int num_points, void* stream = nullptr,
                        CoordinateOrder output_order = CoordinateOrder::XYZ) = 0;
@@ -63,9 +64,7 @@ class Voxelization {
   virtual unsigned int indices_dim() = 0;
   virtual std::vector<int> grid_size() = 0;
   virtual const void* indices() = 0;
-  virtual const void* host_indices() = 0;
-  virtual const void* features() = 0;
-  virtual const void* host_features() = 0;
+    virtual const void* features() = 0;
   virtual CoordinateOrder order() = 0;
 };
 

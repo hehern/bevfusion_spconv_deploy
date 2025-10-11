@@ -30,15 +30,19 @@ set(arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
 find_package(CUDA REQUIRED)
 find_package(Protobuf REQUIRED)
 
-# For cuda-12
-# set(CMAKE_CXX_FLAGS_RELEASE "-std=c++17 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB")
-# set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++17 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+set(spconv_include libraries/3DSparseConvolution/libspconv/include)
+set(spconv_lib libraries/3DSparseConvolution/libspconv/lib/${arch}_cuda$ENV{SPCONV_CUDA_VERSION})
+message(STATUS "spconv_lib = ${spconv_lib}")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB")
-set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
-
-set(CUDA_NVCC_FLAGS_RELEASE "-Werror=all-warnings -Xcompiler -std=c++14,-Wextra,-Wall,-Wno-deprecated-declarations,-O3 -DENABLE_TEXT_BACKEND_STB")
-set(CUDA_NVCC_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+if("$ENV{SPCONV_CUDA_VERSION}" EQUAL "11.4")
+  # For cuda 11.x
+  set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB -Wno-unused-parameter")
+  set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+else()
+  # For cuda 12.x
+  set(CMAKE_CXX_FLAGS_RELEASE "-std=c++17 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB -Wno-unused-parameter")
+  set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++17 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+endif()
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} 
   -gencode arch=compute_$ENV{CUDASM},code=compute_$ENV{CUDASM}
@@ -51,8 +55,9 @@ include_directories(
   $ENV{Python_Inc}
   dependencies/stb
   dependencies/pybind11/include
+  dependencies/dlpack/include
   libraries/cuOSD/src
-  libraries/3DSparseConvolution
+  ${spconv_include}
   src/common
   src/
 )
@@ -60,20 +65,15 @@ include_directories(
 link_directories(
   $ENV{CUDA_Lib}
   $ENV{TensorRT_Lib}
+  ${spconv_lib}
   build
   $ENV{Python_Lib}
 )
 
 file(GLOB_RECURSE CORE_FILES 
-  libraries/3DSparseConvolution/normal_op/*.cu
-  libraries/3DSparseConvolution/*.cpp
-  libraries/3DSparseConvolution/*.cu
-  libraries/3DSparseConvolution/onnx/*.cpp
-  libraries/3DSparseConvolution/onnx/*.cc
-  libraries/3DSparseConvolution/spconv/*.cu
-  libraries/3DSparseConvolution/spconv/*.cpp
   src/bevfusion/*.cu 
   src/bevfusion/*.cpp
+  src/onnx/*.cpp
   src/common/tensor.cu
   src/common/tensorrt.cpp
 )
@@ -93,9 +93,9 @@ target_link_libraries(bevfusion_core
   libcudart.so
   libcublasLt.so
   libnvinfer.so
+  libspconv.so
   ${Protobuf_LIBRARIES}
   libnvinfer_plugin.so
-  ${CUDA_cublas_LIBRARY}
 )
 #######################################################################
 
@@ -109,7 +109,20 @@ cuda_add_executable(bevfusion
 target_link_libraries(bevfusion
   bevfusion_core
   libnvinfer.so
+  libspconv.so
   ${Protobuf_LIBRARIES}
+  libnvinfer_plugin.so
+)
+#######################################################################
+
+
+########################## custom_layernorm.so ################################
+cuda_add_library(custom_layernorm SHARED
+  src/plugins/custom_layernorm.cu
+)
+
+target_link_libraries(custom_layernorm
+  libnvinfer.so
   libnvinfer_plugin.so
 )
 #######################################################################
@@ -120,10 +133,10 @@ if(${CMAKE_BUILD_PYTHON} STREQUAL "ON")
   cuda_add_library(pybev SHARED
     src/python.cpp
   )
-
   target_link_libraries(pybev
     bevfusion_core
     libnvinfer.so
+    libspconv.so
     ${Protobuf_LIBRARIES}
     libnvinfer_plugin.so
     $ENV{Python_Soname}

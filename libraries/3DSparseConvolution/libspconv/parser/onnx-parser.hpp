@@ -21,37 +21,29 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIDAR_SCN_HPP__
-#define __LIDAR_SCN_HPP__
+#ifndef ONNX_PARSER_HPP
+#define ONNX_PARSER_HPP
 
-#include <vector>
-#include <string>
-#include "lidar-voxelization.hpp"
+#include <spconv/engine.hpp>
 
-namespace bevfusion {
-namespace lidar {
+namespace spconv{
 
-// use model accuracy during SCN model inference.
-enum class Precision : int { NonePrecision = 0, Float16 = 1, Int8 = 2 };
+/**
+  Create an engine and load the weights from onnx file
 
-struct SCNParameter {
-  VoxelizationParameter voxelization;//定义了栅格的个数以及分辨率等信息
-  std::string model;//onnx模型保存路径
-  CoordinateOrder order = CoordinateOrder::XYZ;//栅格坐标顺序
-  Precision precision = Precision::Float16;//精度：fp32 fp16 int8三种可选
-};
+  onnx_file: Store the onnx of model structure, please use tool/deploy/export-scn.py to export the
+corresponding onnx precision: What precision to use for model inference. For each layer's precision
+should be stored in the "precision" attribute of the layer
+            - Model inference will ignore the "precision" attribute of each layer what if set to
+Float16
+**/
+std::shared_ptr<Engine> load_engine_from_onnx(
+    const std::string& onnx_file,
+    Precision precision = Precision::Float16,
+    void* stream = nullptr,
+    bool mark_all_output = false);
 
-class SCN {
- public:
-  virtual ~SCN() = default;
-  // points and voxels must be of half-float device pointer
-  virtual const nvtype::half* forward(const nvtype::half* points, unsigned int num_points, void* stream = nullptr) = 0;
-  virtual std::vector<int64_t> shape() = 0;
-};
 
-std::shared_ptr<SCN> create_scn(const SCNParameter& param);
+}; // namespace spconv
 
-};  // namespace lidar
-};  // namespace bevfusion
-
-#endif  // __LIDAR_SCN_HPP__
+#endif // ONNX_PARSER_HPP

@@ -204,10 +204,7 @@ class VoxelizationImplement : public Voxelization {
 
     if (d_real_num_voxels_) checkRuntime(cudaFree(d_real_num_voxels_));
     if (h_real_num_voxels_) checkRuntime(cudaFreeHost(h_real_num_voxels_));
-    if (h_voxel_features_) checkRuntime(cudaFreeHost(h_voxel_features_));
-    if (h_voxel_indices_) checkRuntime(cudaFree(h_voxel_indices_));
-
-  }
+      }
 
   bool init(VoxelizationParameter param) {//初始化
     this->param_ = param;
@@ -226,9 +223,6 @@ class VoxelizationImplement : public Voxelization {
     checkRuntime(cudaMalloc(&d_voxel_indices_, voxel_idxs_size_));//voxel的坐标：batch x y z
     checkRuntime(cudaMalloc(&d_real_num_voxels_, sizeof(unsigned int)));
     checkRuntime(cudaMallocHost(&h_real_num_voxels_, sizeof(unsigned int)));
-    checkRuntime(cudaMallocHost(&h_voxel_features_, voxel_features_size_));//pinned_memory
-    checkRuntime(cudaMallocHost(&h_voxel_indices_, voxel_idxs_size_)); 
-    
     return true;
   }
 
@@ -260,11 +254,6 @@ class VoxelizationImplement : public Voxelization {
     real_num_voxels_ = *h_real_num_voxels_;
     cuda_linear_launch(reduce_mean_kernel, _stream, real_num_voxels_, voxels_temp_, d_voxel_num_, param_.max_points_per_voxel,
                        param_.num_feature, d_voxel_features_);//将voxels_temp_中的点特征按照维度求平均，保存在d_voxel_features_中
-    //内存拷贝
-    checkRuntime(cudaMemcpyAsync(h_voxel_features_, d_voxel_features_, voxel_features_size_, cudaMemcpyDeviceToHost, _stream));
-    checkRuntime(cudaMemcpyAsync(h_voxel_indices_, d_voxel_indices_, voxel_idxs_size_, cudaMemcpyDeviceToHost, _stream));
-    
-    checkRuntime(cudaStreamSynchronize(_stream));
   }
 
   virtual unsigned int num_voxels() override { return real_num_voxels_; }//非空体素栅格个数
@@ -277,11 +266,8 @@ class VoxelizationImplement : public Voxelization {
 
   virtual const void *indices() override { return d_voxel_indices_; }//每个voxel的坐标(indice),uint4*real_num_voxels_,保存在cuda上
 
-  virtual const void *host_indices() override { return h_voxel_indices_; }
-
   virtual const void *features() override { return d_voxel_features_; }//有效voxel特征，5*real_num_voxels_，保存在cuda上
 
-  virtual const void *host_features() override { return h_voxel_features_; }
 
   virtual CoordinateOrder order() override { return order_; }
 
@@ -297,9 +283,7 @@ class VoxelizationImplement : public Voxelization {
   unsigned int *h_real_num_voxels_ = nullptr;//cpu上的变量，存储的是有效voxel的个数，为啥用指针啊？
   unsigned int *d_voxel_num_ = nullptr;//每个voxel中的点的个数
   half *d_voxel_features_ = nullptr;//voxel特征(voxel内的所有点求平均之后的)
-  half *h_voxel_features_ = nullptr;//存放d_voxel_features_的拷贝，在cpu内存上
   unsigned int *d_voxel_indices_ = nullptr;//保存每个voxel的坐标(indice)，uint4*real_num_voxels_
-  unsigned int *h_voxel_indices_ = nullptr;
   unsigned int hash_table_size_;
   unsigned int voxels_temp_size_;
   unsigned int voxel_features_size_;
