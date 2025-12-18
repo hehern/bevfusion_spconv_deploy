@@ -205,7 +205,7 @@ class VoxelizationImplement : public Voxelization {
     if (d_real_num_voxels_) checkRuntime(cudaFree(d_real_num_voxels_));
     if (h_real_num_voxels_) checkRuntime(cudaFreeHost(h_real_num_voxels_));
     if (h_voxel_features_) checkRuntime(cudaFreeHost(h_voxel_features_));
-    if (h_voxel_indices_) checkRuntime(cudaFree(h_voxel_indices_));
+    if (h_voxel_indices_) checkRuntime(cudaFreeHost(h_voxel_indices_));
 
   }
 
