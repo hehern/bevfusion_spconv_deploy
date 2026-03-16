@@ -84,7 +84,7 @@ getIndicePairs(nv::Tensor indices,
     // std::cout << "not subm, rulebook 1, numActOut = " << numActOut << std::endl;
     if (numActOut > 0) {
       // timer_.start(_stream);
-      nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列
+      nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列，indicePairUnique中保存的是vout即输出voxel grid的一维index
       // timer_.stop("find_unique_elements_cuda");
       // std::cout << "not subm, rulebook 2, find_unique_elements_cuda done" << std::endl;
       // timer_.start(_stream);

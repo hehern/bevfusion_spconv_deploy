@@ -118,7 +118,7 @@ int create_conv_indice_pair_p2_cuda(
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
   int ndim = outSpatialShape.size();//3
   int numActIn = indicesIn.size(0);//active voxel num: n
-  int numAct = indicePairUnique.size(0) - 1;//不重复输出序号个数-1
+  int numAct = indicePairUnique.size(0) - 1;//不重复输出序号个数-1,去掉初始化时候的max值
 
   auto kernelVolume = indiceNum.size(0);
   if (numActIn == 0)
@@ -135,6 +135,7 @@ int create_conv_indice_pair_p2_cuda(
   return numAct;
 }
 
+/*
 nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
 
   int64_t num = src_tensor.shape[0];
@@ -145,15 +146,50 @@ nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
   thrust::device_vector<int> d_output(src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
 
   auto end_unique = thrust::unique(thrust::device, d_output.begin(), d_output.end());
-  auto unique_count = thrust::distance(d_output.begin(), end_unique)-1;//不重复元素个数
+  auto unique_count = thrust::distance(d_output.begin(), end_unique);//不重复元素个数，包含最后一个初始化时候的max
 
-  nv::Tensor tar_tensor = nv::Tensor::from_data(thrust::raw_pointer_cast(d_output.data()+1), std::vector<int64_t>{unique_count}, nv::DataType::Int32);//这里为什么会有-1?
+  nv::Tensor tar_tensor = nv::Tensor::from_data(thrust::raw_pointer_cast(d_output.data()), std::vector<int64_t>{unique_count}, nv::DataType::Int32);//这里为什么会有-1?
   // std::cout << "unique_count = " << unique_count << std::endl;
   // std::cout << "tar_tensor.size(0) = " << tar_tensor.size(0) << std::endl;
   // printNumber<<<1, 1>>>(tar_tensor.ptr<int>());
   // tar_tensor.to_host_(stream);
   // std::cout << tar_tensor.ptr<int>()[0] << "," << tar_tensor.ptr<int>()[1] << std::endl;
   return tar_tensor;
+}
+*/
+
+nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
+
+    // 获取输入张量的元素数量
+    int64_t num = src_tensor.shape[0];
+    if (num == 0) {
+        // 如果输入张量为空，直接返回一个空张量
+        return nv::Tensor::create(std::vector<int64_t>{0}, nv::DataType::Int32);
+    }
+
+    // 将 void* 类型的流转换为 CUDA 流
+    cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+
+    // 同步 CUDA 流，确保之前的操作完成
+    checkRuntime(cudaStreamSynchronize(_stream));
+
+    // 对输入张量的数据进行排序（原地排序）
+    thrust::sort(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+
+    // 使用 Thrust 去重操作，返回去重后的末尾迭代器
+    int* unique_end = thrust::unique(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
+
+    // 计算唯一元素的数量
+    int64_t unique_count = unique_end - src_tensor.ptr<int>();
+
+    // 创建一个新的张量，存储唯一元素
+    nv::Tensor tar_tensor = nv::Tensor::from_data(
+        src_tensor.ptr<int>(),                          // 唯一元素的起始地址
+        std::vector<int64_t>{unique_count},            // 唯一元素的数量
+        nv::DataType::Int32                            // 数据类型为 Int32
+    );
+
+    return tar_tensor; // 返回包含唯一元素的张量
 }
 
 void judgeIndicesOutshape(nv::Tensor indices,

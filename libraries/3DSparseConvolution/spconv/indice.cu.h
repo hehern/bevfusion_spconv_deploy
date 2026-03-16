@@ -38,6 +38,7 @@ __global__ void prepareSubMGridKernel(
   const auto& voxel_idy = indicesIn[4*ix+2];
   const auto& voxel_idz = indicesIn[4*ix+3];
   size_t index = (voxel_idx * outSpatialShape[1] + voxel_idy) * outSpatialShape[2] + voxel_idz;//(batch_id,x,y,z) --> index
+  // size_t index = voxel_idz * outSpatialShape[0] * outSpatialShape[1] + voxel_idy * outSpatialShape[0] + voxel_idx;
   gridsOut[index] = ix;//填充active voxel的序号[0, numActIn-1],index为从三维坐标index转换为一维index
 }
 
@@ -77,7 +78,8 @@ __global__ void getSubMIndicePairsKernel3(
           tmp = offset * numActIn + ix;
           indicePairs[tmp] = ix;//indicePairs(0, offset, ix) = ix;
         } else {//非kernel中心点
-          point[2] = indicesIn[4*ix+3] - k + K2 / 2;//voxel_z
+          // 这里是sum类型调用，padding==1,stride=1
+          point[2] = indicesIn[4*ix+3] - k + K2 / 2;//voxel_z，参考GetOffset()，其实为计算Output_index=Input_index-ConvKernel_index+kernel_size/2
           point[1] = indicesIn[4*ix+2] - j + K1 / 2;//voxel_y
           point[0] = indicesIn[4*ix+1] - i + K0 / 2;//voxel_x
           if (point[1] >= 0 && point[1] < outSpatialShape[1] && 
@@ -85,10 +87,11 @@ __global__ void getSubMIndicePairsKernel3(
               point[0] >= 0 && point[0] < outSpatialShape[0]) {
             index = (indicesIn[4*ix+1] * outSpatialShape[1] + indicesIn[4*ix+2]) * outSpatialShape[2] + indicesIn[4*ix+3];//(batch_id,x,y,z) --> index,三维index转换为一维index
   
-            if (gridsOut[index] != -1) {//active voxel对应的位置,这里肯定！=-1，因为前面prepareSubMGridKernel已经赋值过了
+            // 相当于拿着这个卷积核循环对着该点计算卷积后的输出坐标，如果输出的坐标是active voxel的话，表示当前卷积中心点有active voxel即subm有效卷积，否则的话subm无效，常规卷积有效
+            if (gridsOut[index] != -1) {//active voxel对应的位置！=-1，因为前面prepareSubMGridKernel已经赋值过了
               // for subm: indicePairs[0, i] = indicePairs[1, kernelVolume - i - 1]
-              int oldNum = atomicAdd(&(indiceNum[offset]), int(1));
-              atomicAdd(indiceNum + KV - offset - 1, int(1));
+              int oldNum = atomicAdd(&(indiceNum[offset]), int(1));//对应的count++
+              atomicAdd(indiceNum + KV - offset - 1, int(1));//offset只有13个，需要另外一半也填充上，ps：indiceNum是个数组指针，指针+偏移量和上面的数组索引再取地址是一样的，两种写法都可以，炫技
               tmp = (kernelVolume + offset) * numActIn + oldNum;
               indicePairs[tmp] = gridsOut[index];//indicePairs(1, offset, oldNum) = gridsOut[index];
               tmp = offset * numActIn + oldNum;
@@ -107,8 +110,10 @@ __global__ void getSubMIndicePairsKernel3(
 
 /***
  * input_pos[0][1][2]分别为当前voxel的xyz坐标
- * out理解为一个[N][NDim+1]的二维数组，则每一行表示一个输出位置i，out[i][0]...out[i][NDim-1]存储第i个输出位置的索引xyz
+ * out理解为一个[N][NDim+1]的二维数组，则每一行表示一个输出位置i，
+ * out[i][0]...out[i][NDim-1]存储第i个输出位置的索引xyz
  * out[i][NDim]存储与输入相作用的kernel的偏移(offset)
+ * out的有效个数保存在返回值pointCounter中
 ***/
 __device__ int getValidOutPos(const int *input_pos,
                               const int *kernelSize,
@@ -127,7 +132,7 @@ __device__ int getValidOutPos(const int *input_pos,
   bool valid = false;
 
   #pragma unroll
-  for (int i = 0; i < NDim; ++i) {//在各个维度上计算用当前voxel作为输入的所有输出点的上限和下限,注意这个上限和下限是在输出grid上的index
+  for (int i = 0; i < NDim; ++i) {//在各个维度上(xyz)计算用当前voxel作为输入的所有输出点的上限和下限,注意这个上限和下限是在输出grid上的index
     lowers[i] = (input_pos[i] - (kernelSize[i] - 1) * dilation[i] - 1 +
                  stride[i] + padding[i]) /
                 stride[i];
@@ -161,13 +166,13 @@ __device__ int getValidOutPos(const int *input_pos,
       m *= kernelSize[j];
     }
 
-    out[pointCounter * (NDim + 1) + NDim] = offset;//out[i][Ndim]存储于输入相作用kernel的偏移(offset)（即用卷积核中的那个权重计算）
+    out[pointCounter * (NDim + 1) + NDim] = offset;//out[i][Ndim]存储于输入相作用kernel的偏移(offset)（即用卷积核中的哪个权重计算）
     // if (offset == -1) {
     //   printf("offset == -1, input_pos: %d, %d, %d\n", input_pos[0], input_pos[1], input_pos[2]);
     // }
     if (valid)
       ++pointCounter;//++
-    counter[NDim - 1] += 1;//counter[2]为啥一直在++？
+    counter[NDim - 1] += 1;//
 
     #pragma unroll
     for (int c = NDim - 1; c >= 0; --c) {
@@ -181,11 +186,11 @@ __device__ int getValidOutPos(const int *input_pos,
 }
 
 /***
- * 每个active voxel作为卷积中心，先计算每个active voxel对应的参与卷积的所有voxel保存在validPoints中（注意这里其实并不是所有的输出，因为有些conv中中心点没有有效voxel）
+ * 每个active voxel作为卷积中心，先计算每个active voxel对应的参与卷积的所有voxel保存在validPoints中
  * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
  * indicesIn: shape:{num_voxels:n, indices_dim:4},保存+每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
- * indicePairUnique: shape:{27*n+1}
+ * indicePairUnique: shape:{27*n+1}，vout即grid的一维index
 ***/
 __global__ void prepareIndicePairsKernel(
     size_t numActIn,
