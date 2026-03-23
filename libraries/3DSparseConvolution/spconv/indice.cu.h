@@ -241,21 +241,27 @@ __global__ void prepareIndicePairsKernel(
 }
 
 /***
- * indicesOut四个维度，依次填充batch_size、x、y、z
+ * 填充indicesOut和gridsOut,
+ * numAct:shape:{m},输出有效voxel的个数
+ * indicesOut:shape:{{n*27, 4}
+ * gridsOut:shape:{outputVolume}，输出有效的voxel位置保存输出序号0-numAct-1
+ * indicePairs:shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
+ * indicePairUnique:shape:{m+1}，输出grid中的有效voxel坐标,升序排列
+ * outSpatialShape: eg:{720, 720, 21}
 ***/
 __global__ void assignGridAndIndiceOutKernel(
-    size_t numActIn,
+    size_t numAct,
     int* indicesOut, int* gridsOut,
     int* indicePairs, int* indicePairUnique,
     const int* outSpatialShape) {
 
   int ix = cuda_linear_index;
-  if (ix >= numActIn) return;//不重复输出序号个数-1
+  if (ix >= numAct) return;//每个有效输出voxel分配一个thread，numAct即输出有效voxel的个数
 
   const int NDim = 3;
 
   int index = indicePairUnique[ix];//一维序号
-  gridsOut[index] = ix;
+  gridsOut[index] = ix;//输出voxel中有效的voxel位置保存输出序号0-numAct-1
 
   int* output = indicesOut + ix * (NDim + 1) + 1;//x
   for (int i = NDim - 1; i >= 0; --i) {//zyx依次填充

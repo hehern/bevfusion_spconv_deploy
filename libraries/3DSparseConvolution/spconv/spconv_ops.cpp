@@ -53,11 +53,11 @@ getIndicePairs(nv::Tensor indices,
   msg += "must less than std::numeric_limits<int>::max() = 2e9";
   TV_ASSERT_RT_ERR(outputVolume < std::numeric_limits<int64_t>::max(), msg);
   nv::Tensor indicePairs = nv::Tensor::create(std::vector<int64_t>{2, kernelVolume, numAct}, nv::DataType::Int32);//shape:{2,27,n}
-  indicePairs.fill<int>(-1);
+  indicePairs.fill<int32_t>(-1);
   nv::Tensor indiceNum = nv::Tensor::create(std::vector<int64_t>{kernelVolume}, nv::DataType::Int32);//shape:{27}
-  indiceNum.fill<int>(0);
+  indiceNum.fill<int32_t>(0);
   nv::Tensor gridOut = nv::Tensor::create(std::vector<int64_t>{outputVolume}, nv::DataType::Int32);//输出tensor，展平为1维的
-  gridOut.fill<int>(-1);
+  gridOut.fill<int32_t>(-1);
   nv::Tensor ou = nv::Tensor::create(std::vector<int64_t>{NDim}, nv::DataType::Int32);//output_shape
   checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), outSpatialShape.size()*sizeof(int), cudaMemcpyHostToDevice, (cudaStream_t)stream));
 
@@ -74,9 +74,9 @@ getIndicePairs(nv::Tensor indices,
     // std::cout << "not subm" << std::endl;
     // checkRuntime(cudaStreamSynchronize(_stream));
     nv::Tensor indicePairUnique = nv::Tensor::create(std::vector<int64_t>{int64_t(indicePairs.numel / 2) + 1}, nv::DataType::Int32);//N*2*27/2+1
-    indicePairUnique.memset(std::numeric_limits<int32_t>::max(), stream);
+    indicePairUnique.fill<int32_t>(std::numeric_limits<int32_t>::max());
     nv::Tensor outInds = nv::Tensor::create(std::vector<int64_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}
-    outInds.memset(0, stream);
+    outInds.fill<int32_t>(0);
     // checkRuntime(cudaStreamSynchronize(_stream));
     // timer_.start(_stream);
     numActOut = create_conv_indice_pair_p1_cuda(indices, indicePairs, indiceNum, indicePairUnique, kernelSize, stride, padding, dilation, outSpatialShape, outputVolume, stream);
@@ -84,7 +84,7 @@ getIndicePairs(nv::Tensor indices,
     // std::cout << "not subm, rulebook 1, numActOut = " << numActOut << std::endl;
     if (numActOut > 0) {
       // timer_.start(_stream);
-      nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列，indicePairUnique中保存的是vout即输出voxel grid的一维index
+            nv::Tensor indicePairUnique_new = find_unique_elements_cuda(indicePairUnique, stream);//挑出tensor中的独立不重复元素,并按照升序排列，indicePairUnique中保存的是vout即输出voxel grid的一维index
       // timer_.stop("find_unique_elements_cuda");
       // std::cout << "not subm, rulebook 2, find_unique_elements_cuda done" << std::endl;
       // timer_.start(_stream);
