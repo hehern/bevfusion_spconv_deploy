@@ -128,9 +128,9 @@ int create_conv_indice_pair_p2_cuda(
   checkRuntime(cudaMemcpyAsync(ou.ptr<int>(), outSpatialShape.data(), ndim*sizeof(int), cudaMemcpyHostToDevice, _stream));
   
   cuda_linear_launch(assignGridAndIndiceOutKernel, _stream, numAct, indicesOut.ptr<int>(), gridsOut.ptr<int>(), 
-      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>());//计算indicesOut
-  cuda_linear_launch(assignIndicePairsKernel, _stream, numActIn, indicesOut.ptr<int>(), gridsOut.ptr<int>(),
-      indicePairs.ptr<int>(), indicePairUnique.ptr<int>(), ou.ptr<int>(), kernelVolume);//填充???
+    indicePairUnique.ptr<int>(), ou.ptr<int>());//计算indicesOut
+  cuda_linear_launch(assignIndicePairsKernel, _stream, numActIn, gridsOut.ptr<int>(),
+    indicePairs.ptr<int>(), kernelVolume);//填充indicePairs中的vout
 
   return numAct;
 }

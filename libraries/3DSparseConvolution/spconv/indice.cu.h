@@ -43,7 +43,7 @@ __global__ void prepareSubMGridKernel(
 }
 
 /***
- * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
+ * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是grid的一维index
  * indicesIn: shape:{num_voxels:n, indices_dim:4},保存每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
 ***/
@@ -187,7 +187,7 @@ __device__ int getValidOutPos(const int *input_pos,
 
 /***
  * 每个active voxel作为卷积中心，先计算每个active voxel对应的参与卷积的所有voxel保存在validPoints中
- * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
+ * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是grid的一维index与vout还是不一样的，vout为序号[0, numActOut-1]
  * indicesIn: shape:{num_voxels:n, indices_dim:4},保存+每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
  * indicePairUnique: shape:{27*n+1}，vout即grid的一维index
@@ -241,18 +241,18 @@ __global__ void prepareIndicePairsKernel(
 }
 
 /***
- * 填充indicesOut和gridsOut,
+ * 填充indicesOut和gridsOut, 
  * numAct:shape:{m},输出有效voxel的个数
- * indicesOut:shape:{{n*27, 4}
+ * indicesOut:shape:{{n*27, 4}，这里其实只填充了[n,4],不懂为什么size设置为[n*27,4]
  * gridsOut:shape:{outputVolume}，输出有效的voxel位置保存输出序号0-numAct-1
- * indicePairs:shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
  * indicePairUnique:shape:{m+1}，输出grid中的有效voxel坐标,升序排列
  * outSpatialShape: eg:{720, 720, 21}
 ***/
 __global__ void assignGridAndIndiceOutKernel(
     size_t numAct,
-    int* indicesOut, int* gridsOut,
-    int* indicePairs, int* indicePairUnique,
+    int* indicesOut, 
+    int* gridsOut,
+    int* indicePairUnique,
     const int* outSpatialShape) {
 
   int ix = cuda_linear_index;
@@ -282,26 +282,26 @@ __global__ void assignGridAndIndiceOutKernel(
   indicesOut[ix * (NDim + 1)] = 0;//batch_size就填0吧，其实不用
 }
 
+/***
+ * 使用gridsOut填充indicePairs中的vout
+ * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是grid的一维index，这里需要根据grid的一维index计算并填充vout
+***/
 __global__ void
 assignIndicePairsKernel(size_t numActIn,
-                        int* indicesOut,
                         int* gridsOut,
                         int* indicePairs,       //{2,27,n}
-                        int* indicePairUnique,
-                        const int* outSpatialShape,
                         size_t kernelVolume) {
 
   int ix = cuda_linear_index;
   if (ix >= numActIn) return;
 
   int index, tmp;
-  auto indicePairsOut = indicePairs + kernelVolume*numActIn;//从rulebook中获取输出张量到输出序号的哈希表
-
+  auto indicePairsOut = indicePairs + kernelVolume*numActIn;//vout
   for (int i = 0; i < kernelVolume; ++i) {
     tmp = i * numActIn + ix;
     index = indicePairsOut[tmp];
-    if (index > -1) {
-      indicePairsOut[tmp] = gridsOut[index];
+    if (index > -1) {//对应vout非-1,即为有效输出voxel情况下
+      indicePairsOut[tmp] = gridsOut[index];//填充vout，[0, numActOut-1]
     }
   }
 }
