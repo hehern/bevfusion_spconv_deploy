@@ -61,6 +61,8 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
   }
   weight_ = nv::Tensor::from_data(&result[0], std::vector<int64_t>{kernel_x*kernel_y*kernel_z, in_channel, out_channel}, nv::DataType::Float16, false);
   bias_ = nv::Tensor::from_data(&bias[0], bias_shape, nv::DataType::Float16, false);
+  weight_.to_device_();
+  bias_.to_device_();
 }
 
 void SparseConvolution::forward(void *stream) {
@@ -79,9 +81,8 @@ void SparseConvolution::forward(void *stream) {
     SparseDTensor::add_rulebook(rulebook_, datas);
     // std::cout << "add rulebook done" << std::endl;
   }
+
   // step2:conv计算
-  weight_.to_device_(stream);
-  bias_.to_device_(stream);
   nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
   addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
 

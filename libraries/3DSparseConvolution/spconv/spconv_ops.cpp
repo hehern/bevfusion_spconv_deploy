@@ -75,7 +75,7 @@ getIndicePairs(nv::Tensor indices,
     // checkRuntime(cudaStreamSynchronize(_stream));
     nv::Tensor indicePairUnique = nv::Tensor::create(std::vector<int64_t>{int64_t(indicePairs.numel / 2) + 1}, nv::DataType::Int32);//N*2*27/2+1
     indicePairUnique.fill<int32_t>(std::numeric_limits<int32_t>::max());
-    nv::Tensor outInds = nv::Tensor::create(std::vector<int64_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}，这里定义的数据量太大了，后面n*26根本没用
+    nv::Tensor outInds = nv::Tensor::create(std::vector<int64_t>{numAct * kernelVolume, coorDim + 1}, nv::DataType::Int32);//{n*27, 4}，这里定义numAct * kernelVolume是因为非子流行卷积输出active voxel个数比输入多，所以这里相当于设置了一个极限最大值
     outInds.fill<int32_t>(0);
     // checkRuntime(cudaStreamSynchronize(_stream));
     // timer_.start(_stream);
@@ -93,17 +93,17 @@ getIndicePairs(nv::Tensor indices,
       // std::cout << "not subm, rulebook 2, numActOut = " << numActOut << std::endl;
     }
     nv::Tensor finalOutInds = nv::Tensor::from_data(outInds.ptr<int>(), std::vector<int64_t>{numActOut, coorDim + 1}, nv::DataType::Int32);//切片，这地方用from_data有点浪费了，可以优化
-    // return {outInds.slice(0, 0, numActOut), indicePairs, indiceNum};//at::Tensor slice(int64_t dim=0, ::std::optional<int64_t> start=::std::nullopt, ::std::optional<int64_t> end=::std::nullopt, int64_t step=1) const;
     return {finalOutInds, indicePairs, indiceNum};
   }
 }
 
-nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
+nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,inchannel)
                       nv::Tensor filters,     // eg:权重[3*3*3,5,16],5为输入channel个数，16为输出channel个数
                       nv::Tensor indicePairs, // [2, 27, N]
                       nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
-                      int64_t numActOut,
-                      bool subM, void* stream) {            // 子流线卷积默认 true
+                      int64_t numActOut,      // 输出有效voxel个数，暂时可以用M表示
+                      bool subM,              // 子流线卷积默认 true
+                      void* stream) {            
   
   auto kernelVolume = indiceNum.size(0); // 27
   auto numInPlanes = features.size(1);   // 5
@@ -116,7 +116,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   auto indicePairNumCpu = indiceNum.to_host();
 
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
-  output.memset(0, stream);
+  output.fill<half>(__float2half(0.0f));
 
   // init for subM
   int indicePairMaxOffset = kernelVolume / 2; // 13
@@ -131,7 +131,7 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
     indicePairMaxSize =
       *std::max_element(indicePairNumCpu.ptr<int>(),
                         indicePairNumCpu.ptr<int>() + indicePairMaxOffset);
-    if (indicePairMaxSize == 0) {
+    if (indicePairMaxSize == 0) {//subm情况下，最大的indicePairSize肯定是kernel中心点，现在计算的是第二大，如果第二大为0的话，表示每次conv没有非kernel中心点参与卷积，直接返回计算就结束了
       return output;
     }
   } else {
@@ -141,15 +141,13 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,5)
   }
 
   nv::Tensor inputBuffer = nv::Tensor::create(std::vector<int64_t>{indicePairMaxSize, numInPlanes}, features.dtype(), features.device());
-  inputBuffer.memset(0, stream);
   nv::Tensor outputBuffer = nv::Tensor::create(std::vector<int64_t>{indicePairMaxSize, numOutPlanes}, features.dtype(), features.device());
-  outputBuffer.memset(0, stream);
 
 
   // 按照rulebook逐卷积核元素计算
   for (int i = 0; i < kernelVolume; ++i) {//27
     auto nHot = indicePairNumCpu.ptr<int>()[i];//表示第i个卷积核元素对应激活输入输出对个数(count)
-    if (nHot <= 0 || (subM && i == indicePairMaxOffset)) {
+    if (nHot <= 0 || (subM && i == indicePairMaxOffset)) {//count为0,或者subm情况下卷积核中心位置情况下，不需要计算直接continue
       continue;
     }
 

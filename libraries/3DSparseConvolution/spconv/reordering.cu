@@ -24,11 +24,11 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
   half* features_ptr = features.ptr<half>();//其实是fp16
-  half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[indicePairMaxOffset]
+  half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  // cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
-  cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  // cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
   
   // const int BM = 32;
   // const int BN = 32;
@@ -54,23 +54,24 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
 }
 
 /***
- * buffer: (max_size, 5)缓存区，等下在函数中填充对应voxel的特征值
- * features: 输入特征(N,5),5为特征维度，也可能是16、32等
- * indices: 维度为N，但真实的有效个数为size， 需要根据indeces查找到输入voxel的位置和特征值
+ * buffer: (count_max_size, 5)输出缓存区，需要计算的量，等下在函数中填充对应voxel的特征值
+ * features: 输入特征(numActIn,5),5为特征维度，也可能是16、32等
+ * indices: shape:{2,27,numActIn},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即[0, numActOut-1]
  * size: 当前kernel元素对应的输入输出计算次数，即count
 ***/
 void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
                         nv::Tensor indices, int size, int indice_offset, 
                         void* stream) {
-  if (size <= 0)//当前kernel元素位置没有输入输出
+  if (size <= 0)//当前kernel元素位置没有参数计算
     return;
   int numPlanes = features.size(1);//eg:5
-  int num_act = features.size(0);
+  int num_act = features.size(0);//输入active voxel数量
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
   half* buffer_ptr = buffer.ptr<half>();
   half* features_ptr = features.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
+  // 将当前conv kernel元素对应的所有输入active voxel的特征值从features中取出，放到buffer中，等下在matrix_multiply_cuda中进行矩阵乘法计算
   cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes, num_act);
 }
 

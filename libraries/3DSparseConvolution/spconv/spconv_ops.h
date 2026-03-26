@@ -19,9 +19,6 @@
 #include "tensorview/common.h"
 #include "indice.h"
 #include "reordering.h"
-// #include <tensorview/torch_utils.h>
-// #include <torch/script.h>
-// #include <utility/timer.h>
 
 namespace spconv {
 

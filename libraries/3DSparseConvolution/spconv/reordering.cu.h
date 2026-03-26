@@ -24,7 +24,7 @@ namespace spconv {
 
 /***
  * 矩阵乘法的逐点实现方式,这个耗时超级长，目前先这样写，先让整个流程跑通
- * 对于矩阵A（m * k）和矩阵B（k * n, 每个元素访问的次数分别是n与m, 这里存在着对全局内存的多次访问
+ * 对于矩阵A（m * k）和矩阵B（k * n), 每个元素访问的次数分别是n与m, 这里存在着对全局内存的多次访问
 ***/
 __global__ void matrixMultiply(int M, int N, int K, half* a, half* b, half* c) {//这里估计要改成fp16,再看看
   int row = cuda_2d_x;
@@ -33,9 +33,9 @@ __global__ void matrixMultiply(int M, int N, int K, half* a, half* b, half* c) {
   if (row >= M || col >= N)
     return;
 
-  half value = 0.0;
+  half value = __float2half(0.0f);
   for (int i = 0; i < K; i++) {
-    value += a[row * K + i] * b[i * N + col];
+    value = __hadd(value, __hmul(a[row * K + i], b[i * N + col]));
   }
   c[row * N + col] = value;
 }
@@ -214,17 +214,19 @@ __global__ void SgemmV6(int M, int N, int K,
 
 
 /***
- * buffer: (max_size, 5)缓存区，等下在函数中填充对应voxel的特征值
- * features: 输入特征(N,5),5为特征维度，也可能是16、32等
- * indices: 维度为N，但真实的有效个数为size， 需要根据indeces查找到输入voxel的位置和特征值
  * size: 当前kernel元素对应的输入输出计算次数，即count
+ * buffer: (count_max_size, 5)缓存区，等下在函数中填充对应voxel的特征值
+ * features: 输入特征(N,5),5为特征维度，也可能是16、32等
+ * indices: indicePairs偏移之后的变量，可以认为维度为N
+ * numPlanes: 输入特征维度
+ * num_act: 输入有效voxel个数，即N
 ***/
 __global__ void gatherGenericKernel(int size, half *buffer, const half *features,
                                     const int32_t *indices, int numPlanes, int num_act) {
   int ix = cuda_linear_index;
-  if (ix >= size) return;
+  if (ix >= size) return;//举个栗子，比如kerne(-1,-1)的count为100,此时分配100个cuda kernel将对应的feature特征按照顺序取出来保存在buffer中
 
-  auto index_src = indices[ix] * numPlanes;
+  auto index_src = indices[ix] * numPlanes;//v_in * numPlanes
   auto index_tar = ix * numPlanes;
   // if (index_src > numPlanes*(num_act-1)) {
   //   printf("ix: %d, index_src: %d\n", ix, index_src);
@@ -247,7 +249,8 @@ __global__ void scatterAddGenericKernel(int size, half *outFeatures, const half 
 
   #pragma unroll
   for (int ilp = 0; ilp < numPlanes; ++ilp) {
-    outFeatures[index_tar + ilp] += buffer[index_src + ilp];
+    // outFeatures[index_tar + ilp] += buffer[index_src + ilp];//其实用+=也没有关系，因为当前代码逻辑不会出现多个cuda kernel访问同一个outFeatures的情况
+    atomicAdd(&outFeatures[index_tar + ilp], buffer[index_src + ilp]);
   }
 }
 
@@ -258,7 +261,6 @@ __global__ void addBiasAndReluKernel(int num_act, half* features, const half* bi
 
   auto feature = features + ix*numPlanes;
 
-  #pragma unroll
   for (int ilp = 0; ilp < numPlanes; ilp++) {
     feature[ilp] += bias[ilp];
     if (relu) {
