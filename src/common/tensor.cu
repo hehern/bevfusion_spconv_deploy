@@ -460,7 +460,8 @@ void Tensor::fill(const T value) {
     std::fill(this->ptr<T>(), this->ptr<T>()+this->numel, value);
   }
 }
-template void Tensor::fill<int>(const int);
+template void Tensor::fill<int32_t>(const int32_t);
+template void Tensor::fill<half>(const half);
 
 Tensor Tensor::loadbinary(const std::string& file, std::vector<int64_t> shape, DataType dtype, bool device) {
   FILE* f = fopen(file.c_str(), "rb");
