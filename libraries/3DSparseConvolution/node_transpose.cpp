@@ -22,14 +22,18 @@ void Transpose::forward(void *stream) {
     output_shape_[i] = input_shape[dims_[i]];
     output_shape_64_[i] = input_shape[dims_[i]];
   }
+  // for(auto i : output_shape_) {
+  //   std::cout << i << ", ";
+  // }
+  // std::cout << std::endl;
 
   int64_t act_num = input_[0]->indices().shape[0];
   int64_t voxel_dim = input_[0]->features().shape[1];//128
   int64_t indices_dim = input_[0]->indices().shape[1];
   nv::Tensor output_buffer = nv::Tensor::create(output_shape_, nv::DataType::Float16);
   output_buffer.fill<half>(__float2half(0.0f));
-  transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里主需要转换那些有效voxel就可以了
-
+  // transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里只需要转换那些有效voxel就可以了
+  transpose_with_cuda(input_[0]->features(), output_buffer, input_shape, stream);
   // step2:填充数据
   output_[0]->set_data(output_shape_64_, input_[0]->get_features_dtype(), output_buffer.ptr<half>(),
                        input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),

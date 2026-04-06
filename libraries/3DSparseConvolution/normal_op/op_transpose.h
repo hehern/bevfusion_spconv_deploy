@@ -9,6 +9,10 @@ void transpose_cuda(nv::Tensor features, nv::Tensor indices, nv::Tensor output,
                     std::vector<int> input_spatial_shape, std::vector<int> output_shape, 
                     void* stream);
 
+void transpose_with_cuda(nv::Tensor features, 
+                         nv::Tensor output, 
+                         std::vector<int> input_spatial_shape,
+                         void* stream);
 
 }// namespace spconv
 

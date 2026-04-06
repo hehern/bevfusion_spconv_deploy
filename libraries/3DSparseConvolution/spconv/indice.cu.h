@@ -43,7 +43,7 @@ __global__ void prepareSubMGridKernel(
 }
 
 /***
- * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是grid的一维index
+ * indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout输出序号，subm时候是[0, numActIn-1]
  * indicesIn: shape:{num_voxels:n, indices_dim:4},保存每个active voxel的坐标(batch,x,y,z)
  * indiceNum:nv::Tensor, shape:{27},对应的是rule_book中的count
 ***/
@@ -85,7 +85,7 @@ __global__ void getSubMIndicePairsKernel3(
           if (point[1] >= 0 && point[1] < outSpatialShape[1] && 
               point[2] >= 0 && point[2] < outSpatialShape[2] && 
               point[0] >= 0 && point[0] < outSpatialShape[0]) {
-            index = (indicesIn[4*ix+1] * outSpatialShape[1] + indicesIn[4*ix+2]) * outSpatialShape[2] + indicesIn[4*ix+3];//(batch_id,x,y,z) --> index,三维index转换为一维index
+            index = (point[0] * outSpatialShape[1] + point[1]) * outSpatialShape[2] + point[2];//(batch_id,x,y,z) --> index,三维index转换为一维index
   
             // 相当于拿着这个卷积核循环对着该点计算卷积后的输出坐标，如果输出的坐标是active voxel的话，表示当前卷积中心点有active voxel即subm有效卷积，否则的话subm无效，常规卷积有效
             if (gridsOut[index] != -1) {//active voxel对应的位置！=-1，因为前面prepareSubMGridKernel已经赋值过了

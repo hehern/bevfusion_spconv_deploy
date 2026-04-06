@@ -61,11 +61,60 @@ void transpose_cuda(nv::Tensor features, nv::Tensor indices, nv::Tensor output,
   // checkRuntime(cudaStreamSynchronize(_stream));
   // auto featuresHost = features.to_host(stream);
   // auto f_h_ptr = featuresHost.ptr<half>();
+  // printf("featuresHost.numel: %lu,", featuresHost.numel);
   // for(size_t i=0; i<featuresHost.numel; i++) {
   //   float f_f = __half2float(f_h_ptr[i]);
-  //   printf("%f,", f_f);//有很多nan点，有点奇怪，哪里来的？
+  //   printf("%f,", f_f);/
   // }
   // printf("\n");
+}
+
+__global__ void transposeKernel2D(int nx, int ny, int nz, const half* input, half* output, 
+  int channel, int dim_x, int dim_y, int dim_z, int start_y) {
+// 计算线程的二维索引
+int x = cuda_2d_x; // 当前线程的 x 坐标
+int y = cuda_2d_y + start_y; // 当前线程的 y 坐标
+
+// 确保线程索引不越界
+if (x >= nx || y >= dim_x * dim_y * dim_z) return;
+
+// 计算输入张量的高维索引
+int z = y % dim_z; // 取出 z 维度
+int y_idx = (y / dim_z) % dim_y; // 取出 y 维度
+int x_idx = (y / (dim_z * dim_y)) % dim_x; // 取出 x 维度
+int c = x % channel; // 通道索引
+
+// 计算输入和输出的一维索引
+int input_idx = ((c * dim_x + x_idx) * dim_y + y_idx) * dim_z + z;
+int output_idx = ((c * dim_z + z) * dim_x + x_idx) * dim_y + y_idx;
+
+// 数据从输入张量复制到输出张量
+output[output_idx] = input[input_idx];
+}
+
+void transpose_with_cuda(nv::Tensor features, 
+                         nv::Tensor output, 
+                         std::vector<int> input_spatial_shape,
+                         void* stream) {
+  
+  const half* input0_ptr = features.ptr<half>();
+  half* output_ptr = output.ptr<half>();
+  int batch_size = input_spatial_shape[0];
+  int channel = input_spatial_shape[1];
+  int dim_x = input_spatial_shape[2];
+  int dim_y = input_spatial_shape[3];
+  int dim_z = input_spatial_shape[4];
+
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+
+  int max_y = 65535 * 32; // CUDA 网格 y 方向的最大线程数
+  int total_y = dim_x * dim_y * dim_z;
+  for (int start_y = 0; start_y < total_y; start_y += max_y) {
+    int current_y = min(max_y, total_y - start_y);
+    cuda_2d_launch(transposeKernel2D, _stream, channel, current_y, 1, 
+                   input0_ptr, output_ptr, 
+                   channel, dim_x, dim_y, dim_z, start_y);
+  }
 }
 
 
