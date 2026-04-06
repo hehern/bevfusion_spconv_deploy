@@ -174,6 +174,7 @@ std::shared_ptr<bevfusion::Core> create_core(const std::string& model, const std
 
   bevfusion::lidar::SCNParameter scn;
   scn.voxelization = voxelization;
+  // scn.model = nv::format("model/%s/singlenode.lidar.backbone.xyz.onnx", model.c_str());
   scn.model = nv::format("model/%s/lidar.backbone.xyz.onnx", model.c_str());
   scn.order = bevfusion::lidar::CoordinateOrder::XYZ;//
 
@@ -256,7 +257,7 @@ int main(int argc, char** argv) {
       core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
 
   // evaluate inference time
-  // for (int i = 0; i < 5; ++i) {//这里为什么要执行5次？？？
+  // for (int i = 0; i < 5; ++i) {//5次计算平均耗时
   //   core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
   // }
 

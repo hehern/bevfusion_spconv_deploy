@@ -20,7 +20,7 @@ namespace spconv {
   dilation:vector<int>, size()==3,eg:{1, 1, 1}
   out:
   indices: nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
-  indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即grid的一维index
+  indicePairs: shape:{2,27,n},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout
   indiceNum: nv::Tensor, shape:{27},对应的是rule_book中的count
 */
 std::vector<nv::Tensor>
