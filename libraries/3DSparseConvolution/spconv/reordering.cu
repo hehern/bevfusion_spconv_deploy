@@ -27,29 +27,10 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
   half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  cuda_2d_launch(matrixMultiply, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
+  dim3 __threads__(32, 32);
+  dim3 __blocks__(divup(numActOut, 32), divup(numOutPlanes, 32));
+  matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
   // cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
-  
-  // const int BM = 32;
-  // const int BN = 32;
-  // const int TM = 8;
-  // const int TN = 8;
-  // dim3 blockDim(BN / TN, BM / TM);
-  // dim3 gridDim((numOutPlanes + BN - 1) / BN, (numActOut + BM - 1) / BM);
-  // SgemmV6<<<gridDim, blockDim, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-  
-  // half alpha = 1.0f;
-  // half beta = 0.0f;
-  // cublasHandle_t handle;
-  // cublasStatus_t status = cublasCreate(&handle);
-  // if (status != CUBLAS_STATUS_SUCCESS) {
-  //   std::cerr << "!!!! CUBLAS initialization error\n";
-  // }
-  // cublasHgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, numOutPlanes, numActOut, numInPlanes, &alpha, 
-  //             weight_ptr+filter_offset*numInPlanes*numOutPlanes, numOutPlanes, 
-  //             features_ptr, numInPlanes, &beta,
-  //             output_ptr, numOutPlanes);
-  //备注：此处还需要添加一个对结果的转置操作!!!
 
 }
 
