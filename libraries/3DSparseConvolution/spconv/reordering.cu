@@ -27,11 +27,19 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
   half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  dim3 __threads__(32, 32);
-  dim3 __blocks__(divup(numActOut, 32), divup(numOutPlanes, 32));
-  matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-  // cuda_2d_launch(SgemmV1, _stream, numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);//注意这里，当numActOut<32*32时会出问题
-
+  // const int kBlockSize = 32;
+  // dim3 __threads__(kBlockSize, kBlockSize);
+  // dim3 __blocks__(divup(numActOut, kBlockSize), divup(numOutPlanes, kBlockSize));
+  // matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  // SgemmV1<kBlockSize><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  const int BM = 128;
+  const int BK = 8;
+  const int BN = 128;
+  const int TM = 8;
+  const int TN = 8;
+  dim3 __threads__(BM/TM, BN/TN);
+  dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
+  SgemmV2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
 }
 
 /***
