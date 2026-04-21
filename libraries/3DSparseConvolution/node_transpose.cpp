@@ -12,7 +12,7 @@ Transpose::Transpose(const std::string& name, SparseDTensor* x, const std::vecto
 }
 
 void Transpose::forward(void *stream) {
-  std::cout << name_ << ", forward begin:" << std::endl;
+  // std::cout << name_ << ", forward begin:" << std::endl;
   assert(input_[0]->grid_size().size() == dims_.size());
   // step1:转换数据保存的顺序[1, 128, 180, 180, 2]->[1, 128, 2, 180, 180]
   std::vector<int> input_shape = input_[0]->grid_size();
@@ -38,7 +38,7 @@ void Transpose::forward(void *stream) {
   output_[0]->set_data(output_shape_64_, input_[0]->get_features_dtype(), output_buffer.ptr<half>(),
                        input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
                        output_shape_, stream);//这里indices不变，还是维持之前的xyz顺序
-  std::cout << name_ << ", forward done!" << std::endl;
+  // std::cout << name_ << ", forward done!" << std::endl;
 }
 
 }// namespace spconv

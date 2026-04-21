@@ -257,9 +257,9 @@ int main(int argc, char** argv) {
       core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
 
   // evaluate inference time
-  // for (int i = 0; i < 5; ++i) {//5次计算平均耗时
-  //   core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
-  // }
+  for (int i = 0; i < 5; ++i) {//5次计算平均耗时
+    core->forward((const unsigned char**)images.data(), lidar_points.ptr<nvtype::half>(), lidar_points.size(0), stream);
+  }
 
   // visualize and save to jpg
   visualize(bboxes, lidar_points, images, lidar2image, "build/cuda-bevfusion.jpg", stream);

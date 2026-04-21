@@ -29,7 +29,7 @@ void Add::forward(void *stream) {
   output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<half>(),
                        input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
                        input_[0]->grid_size(), stream);
-  std::cout << name_ << ", forward done!" << std::endl;
+  // std::cout << name_ << ", forward done!" << std::endl;
 }
 
 }// namespace spconv

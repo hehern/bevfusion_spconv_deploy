@@ -20,7 +20,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
 #include "lidar-scn.hpp"
 #include "onnx-parser.hpp"
 
@@ -63,19 +64,49 @@ class SCNImplement : public SCN {
     //   }
     // }
     // printf("--------\n");
+    // printf("num_voxels = %d\n", voxelization_->num_voxels());
     native_scn_->forward(
       std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->voxel_dim()}, nv::DataType::Float16,
       (void*)voxelization_->features(), std::vector<int64_t>{voxelization_->num_voxels(), voxelization_->indices_dim()},
       nv::DataType::Int32, (void*)voxelization_->indices(), voxelization_->grid_size(), stream);
+
+    // std::cout << "onnx output size = " << native_scn_->num_output() << std::endl;
+    // std::vector<int64_t> output0_shape = native_scn_->output(0)->features().shape;
+    // std::cout << "SCNImplement->forward output0_shape = ";
+    // for (int i=0; i<output0_shape.size(); i++) {
+    //   std::cout << output0_shape[i] << ",";
+    // }
+    // std::cout << std::endl;
 
     // auto featuresHost = native_scn_->output(0)->features().to_host(stream);
     // auto f_h_ptr = featuresHost.ptr<half>();
     // printf("features numel = %d\n", featuresHost.numel);
     // for(size_t i=0; i<featuresHost.numel; i++) {
     //   float f_f = __half2float(f_h_ptr[i]);
-    //   printf("%f,", f_f);//有很多nan点，有点奇怪，哪里来的？
+    //   printf("%f,", f_f);
+    //   if ((i+1)%output0_shape[3] == 0) {
+    //     printf("\n");
+    //   }
     // }
     // printf("\n");
+    // 分配 CPU 内存
+    // size_t print_num = 100*output0_shape[2]*output0_shape[3];
+    // std::vector<half> cpu_data(print_num);
+    // const void* gpu_data = native_scn_->output(0)->features().ptr<half>();
+    // // 将数据从 GPU 复制到 CPU
+    // cudaMemcpy(cpu_data.data(), gpu_data, print_num * sizeof(half), cudaMemcpyDeviceToHost);
+    // // 输出数据
+    // printf("features numel = %d\n", print_num);
+    // size_t count = 0;
+    // for(size_t i=0; i<print_num; i++) {
+    //   float f_f = __half2float(cpu_data[i]);
+    //   if (f_f != 0.0f) {
+    //     printf("%zu %f,\n", i, f_f);
+    //     count++;
+    //   }
+    // }
+    // printf("\n");
+
     return native_scn_->output(0)->features().ptr<nvtype::half>();
   }
 

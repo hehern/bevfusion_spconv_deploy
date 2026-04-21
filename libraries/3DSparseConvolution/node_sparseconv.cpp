@@ -66,7 +66,7 @@ SparseConvolution::SparseConvolution(const std::string& name, SparseDTensor* x,
 }
 
 void SparseConvolution::forward(void *stream) {
-  std::cout << name_ << " forward:" << std::endl;
+  // std::cout << name_ << " forward:" << std::endl;
   // if (name_ == "conv0") {
   //   printFeatures(input_[0]->features(), stream);
   // }
@@ -99,7 +99,7 @@ void SparseConvolution::forward(void *stream) {
   output_[0]->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<half>(), 
                        indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
                        out_spatial_shape_, stream);
-  std::cout << name_ << ", forward done!" << std::endl;
+  // std::cout << name_ << ", forward done!" << std::endl;
 }
 
 }// namespace spconv
