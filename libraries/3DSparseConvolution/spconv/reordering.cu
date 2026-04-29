@@ -39,7 +39,8 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
   const int TN = 8;
   dim3 __threads__(BM/TM, BN/TN);
   dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
-  SgemmV2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  // SgemmV2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
 }
 
 /***
@@ -61,7 +62,13 @@ void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
   half* features_ptr = features.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
   // 将当前conv kernel元素对应的所有输入active voxel的特征值从features中取出，放到buffer中，等下在matrix_multiply_cuda中进行矩阵乘法计算
-  cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes, num_act);
+  // cuda_linear_launch(gatherGenericKernel, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes, num_act);
+  // const int BM = 128;
+  // const int BK = 4;
+  // dim3 __threads__(BM);
+  // dim3 __blocks__(divup(size, BM));
+  // gatherGenericKernelV2<BM, BK><<<__blocks__, __threads__, 0, _stream>>>(size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes);
+  cuda_linear_launch(gatherGenericKernelV3, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes);
 }
 
 void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
@@ -75,7 +82,8 @@ void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
   half* buffer_ptr = buffer.ptr<half>();
   half* outFeatures_ptr = outFeatures.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
-  cuda_linear_launch(scatterAddGenericKernel, _stream, size, outFeatures_ptr, buffer_ptr, indices_ptr+indice_offset, numPlanes);
+  // cuda_linear_launch(scatterAddGenericKernel, _stream, size, outFeatures_ptr, buffer_ptr, indices_ptr+indice_offset, numPlanes);
+  cuda_linear_launch(scatterAddGenericKernelV2, _stream, size, outFeatures_ptr, buffer_ptr, indices_ptr+indice_offset, numPlanes);
 
 }
 
