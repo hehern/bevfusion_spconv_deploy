@@ -19,6 +19,7 @@
 #include "common/launch.cuh"
 
 #define OFFSET(row, col, ld) ((row) * (ld) + (col))
+#define HALF2(pointer) (reinterpret_cast<half2*>(&(pointer))[0])
 
 // see http://www.nvidia.com/content/GTC-2010/pdfs/2238_GTC2010.pdf.
 namespace spconv {
@@ -194,7 +195,7 @@ template <const int BM, // bm 128
           const int TM, // rm 8
           const int TN  // rn 8
           >
-__global__ void SgemmV6(int M, int N, int K, const half* a, const half* b, half* c) {
+__global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
   const int bx = blockIdx.x;
   const int by = blockIdx.y;
   const int tx = threadIdx.x;
@@ -245,10 +246,12 @@ __global__ void SgemmV6(int M, int N, int K, const half* a, const half* b, half*
     if (load_b_gmem_k < K) {
       int load_b_gmem_addr = OFFSET(load_b_gmem_k, load_b_gmem_n, N); // B数据当前线程对应的索引地址
       if (load_b_gmem_n + 3 < N) {
-        s_b[load_b_smem_k][load_b_smem_n + 0] = b[load_b_gmem_addr + 0];
-        s_b[load_b_smem_k][load_b_smem_n + 1] = b[load_b_gmem_addr + 1];
-        s_b[load_b_smem_k][load_b_smem_n + 2] = b[load_b_gmem_addr + 2];
-        s_b[load_b_smem_k][load_b_smem_n + 3] = b[load_b_gmem_addr + 3];
+        HALF2(s_b[load_b_smem_k][load_b_smem_n]) = HALF2(b[load_b_gmem_addr]);
+        HALF2(s_b[load_b_smem_k][load_b_smem_n + 2]) = HALF2(b[load_b_gmem_addr + 2]);
+        // s_b[load_b_smem_k][load_b_smem_n + 0] = b[load_b_gmem_addr + 0];
+        // s_b[load_b_smem_k][load_b_smem_n + 1] = b[load_b_gmem_addr + 1];
+        // s_b[load_b_smem_k][load_b_smem_n + 2] = b[load_b_gmem_addr + 2];
+        // s_b[load_b_smem_k][load_b_smem_n + 3] = b[load_b_gmem_addr + 3];
       } else {
         #pragma unroll
         for (int i = 0; i < N - load_b_gmem_n; i++) {
@@ -267,25 +270,33 @@ __global__ void SgemmV6(int M, int N, int K, const half* a, const half* b, half*
     #pragma unroll
     for (int tk = 0; tk < BK; tk++) {
       // 128*8 每行2个线程  tx * TM / 2  表示数据A对应线程块内的局部横坐标
-      r_comp_a[0] = s_a[tk][tx * TM / 2 + 0];
-      r_comp_a[1] = s_a[tk][tx * TM / 2 + 1];
-      r_comp_a[2] = s_a[tk][tx * TM / 2 + 2];
-      r_comp_a[3] = s_a[tk][tx * TM / 2 + 3];
-      r_comp_a[4] = s_a[tk][tx * TM / 2 + BM / 2 + 0];
-      r_comp_a[5] = s_a[tk][tx * TM / 2 + BM / 2 + 1];
-      r_comp_a[6] = s_a[tk][tx * TM / 2 + BM / 2 + 2];
-      r_comp_a[7] = s_a[tk][tx * TM / 2 + BM / 2 + 3];
+      HALF2(r_comp_a[0]) = HALF2(s_a[tk][tx * TM / 2]);
+      HALF2(r_comp_a[2]) = HALF2(s_a[tk][tx * TM / 2 + 2]);
+      HALF2(r_comp_a[4]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2 + 0]);
+      HALF2(r_comp_a[6]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2 + 2]);
+      // r_comp_a[0] = s_a[tk][tx * TM / 2 + 0];
+      // r_comp_a[1] = s_a[tk][tx * TM / 2 + 1];
+      // r_comp_a[2] = s_a[tk][tx * TM / 2 + 2];
+      // r_comp_a[3] = s_a[tk][tx * TM / 2 + 3];
+      // r_comp_a[4] = s_a[tk][tx * TM / 2 + BM / 2 + 0];
+      // r_comp_a[5] = s_a[tk][tx * TM / 2 + BM / 2 + 1];
+      // r_comp_a[6] = s_a[tk][tx * TM / 2 + BM / 2 + 2];
+      // r_comp_a[7] = s_a[tk][tx * TM / 2 + BM / 2 + 3];
       // ty * TN / 2   ty * TN / 2 表示数据B对应线程块内的局部坐标坐标
       // LDS.128访问share menory一条指令每个thread是4个32bit数，share
       // memory 一拍做多只能处理8个thread的LDS.128
-      r_comp_b[0] = s_b[tk][ty * TN / 2 + 0];
-      r_comp_b[1] = s_b[tk][ty * TN / 2 + 1];
-      r_comp_b[2] = s_b[tk][ty * TN / 2 + 2];
-      r_comp_b[3] = s_b[tk][ty * TN / 2 + 3];
-      r_comp_b[4] = s_b[tk][ty * TN / 2 + BN / 2 + 0];
-      r_comp_b[5] = s_b[tk][ty * TN / 2 + BN / 2 + 1];
-      r_comp_b[6] = s_b[tk][ty * TN / 2 + BN / 2 + 2];
-      r_comp_b[7] = s_b[tk][ty * TN / 2 + BN / 2 + 3];
+      HALF2(r_comp_b[0]) = HALF2(s_b[tk][ty * TN / 2 + 0]);
+      HALF2(r_comp_b[2]) = HALF2(s_b[tk][ty * TN / 2 + 2]);
+      HALF2(r_comp_b[4]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2 + 0]);
+      HALF2(r_comp_b[6]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2 + 2]);
+      // r_comp_b[0] = s_b[tk][ty * TN / 2 + 0];
+      // r_comp_b[1] = s_b[tk][ty * TN / 2 + 1];
+      // r_comp_b[2] = s_b[tk][ty * TN / 2 + 2];
+      // r_comp_b[3] = s_b[tk][ty * TN / 2 + 3];
+      // r_comp_b[4] = s_b[tk][ty * TN / 2 + BN / 2 + 0];
+      // r_comp_b[5] = s_b[tk][ty * TN / 2 + BN / 2 + 1];
+      // r_comp_b[6] = s_b[tk][ty * TN / 2 + BN / 2 + 2];
+      // r_comp_b[7] = s_b[tk][ty * TN / 2 + BN / 2 + 3];
 
       #pragma unroll
       for (int tm = 0; tm < TM; tm++) {
@@ -304,16 +315,20 @@ __global__ void SgemmV6(int M, int N, int K, const half* a, const half* b, half*
     int store_c_gmem_n = by * BN + ty * TN / 2;
     int store_c_gmem_addr = OFFSET(store_c_gmem_m, store_c_gmem_n, N);
     if (store_c_gmem_n  < N) {
-      c[store_c_gmem_addr + 0] = r_c[i][0];
-      c[store_c_gmem_addr + 1] = r_c[i][1];
-      c[store_c_gmem_addr + 2] = r_c[i][2];
-      c[store_c_gmem_addr + 3] = r_c[i][3];
+      HALF2(c[store_c_gmem_addr + 0]) = HALF2(r_c[i][0]);
+      HALF2(c[store_c_gmem_addr + 2]) = HALF2(r_c[i][2]);
+      // c[store_c_gmem_addr + 0] = r_c[i][0];
+      // c[store_c_gmem_addr + 1] = r_c[i][1];
+      // c[store_c_gmem_addr + 2] = r_c[i][2];
+      // c[store_c_gmem_addr + 3] = r_c[i][3];
     }
     if (store_c_gmem_n + BN / 2  < N) {
-      c[store_c_gmem_addr + 0 + BN / 2] = r_c[i][4 + 0];
-      c[store_c_gmem_addr + 1 + BN / 2] = r_c[i][4 + 1];
-      c[store_c_gmem_addr + 2 + BN / 2] = r_c[i][4 + 2];
-      c[store_c_gmem_addr + 3 + BN / 2] = r_c[i][4 + 3];
+      HALF2(c[store_c_gmem_addr + 0 + BN / 2]) = HALF2(r_c[i][4 + 0]);
+      HALF2(c[store_c_gmem_addr + 2 + BN / 2]) = HALF2(r_c[i][4 + 2]);
+      // c[store_c_gmem_addr + 0 + BN / 2] = r_c[i][4 + 0];
+      // c[store_c_gmem_addr + 1 + BN / 2] = r_c[i][4 + 1];
+      // c[store_c_gmem_addr + 2 + BN / 2] = r_c[i][4 + 2];
+      // c[store_c_gmem_addr + 3 + BN / 2] = r_c[i][4 + 3];
     }
   }
 
@@ -323,17 +338,21 @@ __global__ void SgemmV6(int M, int N, int K, const half* a, const half* b, half*
     int store_c_gmem_n = by * BN + ty * TN / 2;
     int store_c_gmem_addr = OFFSET(store_c_gmem_m, store_c_gmem_n, N);
     if (store_c_gmem_n + 4 < N) {
-      c[store_c_gmem_addr + 0] = r_c[i + TM / 2][0];
-      c[store_c_gmem_addr + 1] = r_c[i + TM / 2][1];
-      c[store_c_gmem_addr + 2] = r_c[i + TM / 2][2];
-      c[store_c_gmem_addr + 3] = r_c[i + TM / 2][3];
+      HALF2(c[store_c_gmem_addr + 0]) = HALF2(r_c[i + TM / 2][0]);
+      HALF2(c[store_c_gmem_addr + 2]) = HALF2(r_c[i + TM / 2][2]);
+      // c[store_c_gmem_addr + 0] = r_c[i + TM / 2][0];
+      // c[store_c_gmem_addr + 1] = r_c[i + TM / 2][1];
+      // c[store_c_gmem_addr + 2] = r_c[i + TM / 2][2];
+      // c[store_c_gmem_addr + 3] = r_c[i + TM / 2][3];
     }
 
     if (store_c_gmem_n + BN / 2  < N) {
-      c[store_c_gmem_addr + 0 + BN / 2] = r_c[i + TM / 2][4 + 0];
-      c[store_c_gmem_addr + 1 + BN / 2] = r_c[i + TM / 2][4 + 1];
-      c[store_c_gmem_addr + 2 + BN / 2] = r_c[i + TM / 2][4 + 2];
-      c[store_c_gmem_addr + 3 + BN / 2] = r_c[i + TM / 2][4 + 3];
+      HALF2(c[store_c_gmem_addr + 0 + BN / 2]) = HALF2(r_c[i + TM / 2][4 + 0]);
+      HALF2(c[store_c_gmem_addr + 2 + BN / 2]) = HALF2(r_c[i + TM / 2][4 + 2]);
+      // c[store_c_gmem_addr + 0 + BN / 2] = r_c[i + TM / 2][4 + 0];
+      // c[store_c_gmem_addr + 1 + BN / 2] = r_c[i + TM / 2][4 + 1];
+      // c[store_c_gmem_addr + 2 + BN / 2] = r_c[i + TM / 2][4 + 2];
+      // c[store_c_gmem_addr + 3 + BN / 2] = r_c[i + TM / 2][4 + 3];
     }
   }
 }
