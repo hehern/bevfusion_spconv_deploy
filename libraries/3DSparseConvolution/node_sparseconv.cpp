@@ -92,13 +92,18 @@ void SparseConvolution::forward(void *stream) {
   // }
 
   // step3:保存输出
-  std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};
-  std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
+  // std::vector<int64_t> features_shape{datas[0].shape[0], weight_shape_[0]};
+  // std::vector<int64_t> indices_shape{datas[0].shape[0], datas[0].shape[1]};
   // std::cout << "features_shape = " << datas[0].shape[0] << "," << weight_shape_[0] << std::endl;
   // std::cout << "indices_shape = " << datas[0].shape[0] << "," << datas[0].shape[1] << std::endl;
-  output_[0]->set_data(features_shape, input_[0]->get_features_dtype(), result.ptr<half>(), 
-                       indices_shape, input_[0]->get_indices_dtype(), datas[0].ptr<int>(),
-                       out_spatial_shape_, stream);
+  // cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  // timer_.start(_stream);
+  // printf("result use_conut: %d\n", result.use_count());
+  output_[0]->set_data(input_[0]->get_features_dtype(), result,
+                       input_[0]->get_indices_dtype(), datas[0],
+                       out_spatial_shape_);
+  // printf("result use_conut: %d\n", result.use_count());
+  // timer_.stop("SparseConvolution set_data");
   // std::cout << name_ << ", forward done!" << std::endl;
 }
 

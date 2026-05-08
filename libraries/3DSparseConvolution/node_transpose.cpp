@@ -35,9 +35,9 @@ void Transpose::forward(void *stream) {
   // transpose_cuda(input_[0]->features(), input_[0]->indices(), output_buffer, act_num, voxel_dim, indices_dim, input_shape, output_shape_, stream);//注意这里只需要转换那些有效voxel就可以了
   transpose_with_cuda(input_[0]->features(), output_buffer, input_shape, stream);
   // step2:填充数据
-  output_[0]->set_data(output_shape_64_, input_[0]->get_features_dtype(), output_buffer.ptr<half>(),
-                       input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
-                       output_shape_, stream);//这里indices不变，还是维持之前的xyz顺序
+  output_[0]->set_data(input_[0]->get_features_dtype(), output_buffer,
+                       input_[0]->get_indices_dtype(), input_[0]->indices(),
+                       output_shape_);
   // std::cout << name_ << ", forward done!" << std::endl;
 }
 

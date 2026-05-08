@@ -26,9 +26,9 @@ void Add::forward(void *stream) {
   add_cuda(input_[0]->features(), input_[1]->features(), output_buffer, act_num, voxel_dim, stream);
 
   // step2:调用输出的set_data将结果填充进去
-  output_[0]->set_data(input_[0]->get_features_shape(), input_[0]->get_features_dtype(), output_buffer.ptr<half>(),
-                       input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
-                       input_[0]->grid_size(), stream);
+  output_[0]->set_data(input_[0]->get_features_dtype(), output_buffer,
+                       input_[0]->get_indices_dtype(), input_[0]->indices(),
+                       input_[0]->grid_size());
   // std::cout << name_ << ", forward done!" << std::endl;
 }
 

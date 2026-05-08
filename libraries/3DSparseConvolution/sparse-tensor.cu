@@ -31,10 +31,30 @@ void SparseDTensor::set_data(
     features_dtype_ = features_dtype;
     indices_dtype_ = indices_dtype;
 
-    features_ = nv::Tensor::create(features_shape, features_dtype);
-    features_.copy_from_device(features_data, stream);
-    indices_ = nv::Tensor::create(indices_shape, indices_dtype);
-    indices_.copy_from_device(indices_data, stream);
+    // features_ = nv::Tensor::create(features_shape, features_dtype);
+    // features_.copy_from_device(features_data, stream);
+    // indices_ = nv::Tensor::create(indices_shape, indices_dtype);
+    // indices_.copy_from_device(indices_data, stream);
+
+    features_ = nv::Tensor::from_data_reference(features_data, features_shape, features_dtype);
+    indices_ = nv::Tensor::from_data_reference(indices_data, indices_shape, indices_dtype);
+
+    
+}
+
+void SparseDTensor::set_data(
+  nv::DataType features_dtype, const nv::Tensor& features,
+  nv::DataType indices_dtype, const nv::Tensor& indices,
+  std::vector<int> grid_size) {
+
+    features_shape_ = features.shape;
+    indices_shape_ = indices.shape;
+    grid_size_ = grid_size;
+    features_dtype_ = features_dtype;
+    indices_dtype_ = indices_dtype;
+
+    features_ = features;
+    indices_ = indices;
 
     
 }

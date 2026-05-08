@@ -18,10 +18,10 @@ void Reshape::forward(void *stream) {
     output_shape_[i] = dims_[i];
   }
 
-  // step2:填充数据
-  output_[0]->set_data(dims_, input_[0]->get_features_dtype(), input_[0]->features().ptr<half>(),
-                       input_[0]->get_indices_shape(), input_[0]->get_indices_dtype(), input_[0]->indices().ptr<int>(),
-                       output_shape_, stream);//reshape并不改变内存的保存顺序
+  // step2:填充数据, do nothing
+  output_[0]->set_data(input_[0]->get_features_dtype(), input_[0]->features(),
+                       input_[0]->get_indices_dtype(), input_[0]->indices(),
+                       output_shape_);
   // std::cout << name_ << ", forward done!" << std::endl;
 }
 
