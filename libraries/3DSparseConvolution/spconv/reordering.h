@@ -17,14 +17,14 @@
 #include "tensor.hpp"
 
 namespace spconv {
-void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
+void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters, nv::Tensor& output,
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream);
-void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
-                        nv::Tensor indices, int size, int indice_offset,
+void sparse_gather_cuda(nv::Tensor& buffer, const nv::Tensor& features,
+                        const nv::Tensor& indices, int size, int indice_offset,
                         void* stream);
-void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
-                             nv::Tensor indices, int size, int indice_offset,
+void sparse_scatter_add_cuda(const nv::Tensor& buffer, nv::Tensor& outFeatures,
+                             const nv::Tensor& indices, int size, int indice_offset,
                              void* stream);
 
 void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,

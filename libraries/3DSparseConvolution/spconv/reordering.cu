@@ -20,27 +20,66 @@
 
 namespace spconv {
 
-void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor output,
+void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters, nv::Tensor& output,
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
   half* features_ptr = features.ptr<half>();//其实是fp16
   half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  // const int kBlockSize = 32;
-  // dim3 __threads__(kBlockSize, kBlockSize);
-  // dim3 __blocks__(divup(numActOut, kBlockSize), divup(numOutPlanes, kBlockSize));
-  // matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-  // SgemmV1<kBlockSize><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-  const int BM = 128;
-  const int BK = 8;
-  const int BN = 128;
-  const int TM = 8;
-  const int TN = 8;
-  dim3 __threads__(BM/TM, BN/TN);
-  dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
-  // SgemmV2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-  SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+  // printf("i am here \n");
+  const int key = (numInPlanes << 16) | numOutPlanes;
+  switch (key) {
+    // case (5 << 16) | 16:   // 5x16
+    //   {
+    //     const int BM = 512;
+    //     const int BK = 5;
+    //     const int BN = 16;
+    //     const int TM = 8;
+    //     const int TN = 8;
+    //     dim3 __threads__(BM/TM, BN/TN);//64,2
+    //     dim3 __blocks__(divup(numActOut, BM), 1);
+    //     fp16_gemm_5x16_V2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+    //   }
+    //   break;
+    // case (16 << 16) | 16:  // 16x16
+    //   {
+    //     const int BM = 128;
+    //     const int BK = 16;
+    //     const int BN = 16;
+    //     const int TM = 8;
+    //     const int TN = 8;
+    //     dim3 __threads__(BM/TM, BN/TN);//16,2
+    //     dim3 __blocks__(divup(numActOut, BM), 1);
+    //     fp16_gemm_16x16<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+    //   }
+    //   break;
+    // case (16 << 16) | 32:  // 16x32
+    //   {
+    //     const int BM = 128;
+    //     const int BK = 16;
+    //     const int BN = 32;
+    //     const int TM = 8;
+    //     const int TN = 8;
+    //     dim3 __threads__(BM/TM, BN/TN);//16,4
+    //     dim3 __blocks__(divup(numActOut, BM), 1);
+    //     fp16_gemm_16x32<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+    //   }
+    //   break;
+    default:
+      {
+        const int BM = 128;
+        const int BK = 8;
+        const int BN = 128;
+        const int TM = 8;
+        const int TN = 8;
+        dim3 __threads__(BM/TM, BN/TN);
+        dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
+        // printf("i am here SgemmV6\n");
+        SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
+      }
+  }
+
 }
 
 /***
@@ -49,8 +88,8 @@ void matrix_multiply_cuda(nv::Tensor features, nv::Tensor filters, nv::Tensor ou
  * indices: shape:{2,27,numActIn},就是rule_book，0里面存的是vin即active voxel的序号[0, numActIn-1]，1里面存的是vout即[0, numActOut-1]
  * size: 当前kernel元素对应的输入输出计算次数，即count
 ***/
-void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
-                        nv::Tensor indices, int size, int indice_offset, 
+void sparse_gather_cuda(nv::Tensor& buffer, const nv::Tensor& features,
+                        const nv::Tensor& indices, int size, int indice_offset, 
                         void* stream) {
   if (size <= 0)//当前kernel元素位置没有参数计算
     return;
@@ -71,8 +110,8 @@ void sparse_gather_cuda(nv::Tensor buffer, nv::Tensor features,
   cuda_linear_launch(gatherGenericKernelV3, _stream, size, buffer_ptr, features_ptr, indices_ptr+indice_offset, numPlanes);
 }
 
-void sparse_scatter_add_cuda(nv::Tensor buffer, nv::Tensor outFeatures,
-                             nv::Tensor indices, int size, int indice_offset,
+void sparse_scatter_add_cuda(const nv::Tensor& buffer, nv::Tensor& outFeatures,
+                             const nv::Tensor& indices, int size, int indice_offset,
                              void* stream) {
   if (size <= 0)
     return;
