@@ -27,6 +27,16 @@ void sparse_scatter_add_cuda(const nv::Tensor& buffer, nv::Tensor& outFeatures,
                              const nv::Tensor& indices, int size, int indice_offset,
                              void* stream);
 
+// 批量处理版本 - 将27次循环合并
+void sparse_gather_all_cuda(nv::Tensor& buffer, const nv::Tensor& features,
+                            const nv::Tensor& indices, const int* kernelIds,
+                            const int* kernelOffsets, int numActIn, int totalCount,
+                            void* stream);
+void sparse_scatter_add_all_cuda(nv::Tensor& buffer, nv::Tensor& output,
+                                 const nv::Tensor& indices, const int* kernelIds,
+                                 const int* kernelOffsets, int numActIn, int totalCount,
+                                 void* stream, int kernelVolume = 27);
+
 void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,
                     bool Relu, void* stream);
 } // namespace spconv

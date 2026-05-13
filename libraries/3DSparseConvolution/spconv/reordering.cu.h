@@ -1089,6 +1089,562 @@ __global__ void addBiasAndReluKernel(int num_act, half* features, const half* bi
   
 }
 
+/************************************************************************
+ * 批量处理版本 - 将27次循环合并为单次操作，减少kernel launch开销
+ ************************************************************************/
+
+/***
+ * sparse_gather_all_cuda: 一次性gather所有kernel位置的输入到连续buffer
+ * buffer: (totalCount, numInPlanes) 输出缓存区，连续存放所有输入
+ * features: 输入特征(numActIn, numInPlanes)
+ * indices: shape:{2, kernelVolume, numActIn}，indicePairs
+ * counts: 各kernel位置对应的输入数量
+ * kernelVolume: kernel元素个数（如27）
+***/
+// gatherAllKernelV2 - 使用offset数组进行二分查找，更高效
+__global__ void gatherAllKernelV2(
+    int totalCount,
+    half *buffer,
+    const half *features,
+    const int32_t *indices,
+    const int32_t *offsets,     // 累积偏移数组，长度为kernelVolume+1
+    int kernelVolume,
+    int numPlanes,
+    int numActIn
+) {
+    int ix = cuda_linear_index;
+    if (ix >= totalCount) return;
+
+    // 二分查找定位kernel位置
+    int left = 0, right = kernelVolume - 1;
+    while (left <= right) {
+        int mid = (left + right) / 2;
+        if (ix < offsets[mid + 1]) {
+          if (ix >= offsets[mid]) {
+            // 找到kernelIdx
+            int kernelIdx = mid;
+            int localIdx = ix - offsets[mid];
+            int vin = indices[kernelIdx * numActIn + localIdx];
+            int srcIdx = vin * numPlanes;
+            int dstIdx = ix * numPlanes;
+
+            // 向量化拷贝
+            #pragma unroll 4
+            for (int i = 0; i < numPlanes; ++i) {
+              buffer[dstIdx + i] = features[srcIdx + i];
+            }
+            return;
+          }
+          right = mid - 1;
+        } else {
+          left = mid + 1;
+        }
+    }
+}
+
+// scatterAddAllKernel - 批量scatter到output
+__global__ void scatterAddAllKernel(
+    int totalCount,
+    half *outFeatures,
+    const half *buffer,
+    const int32_t *indices,      // (2, kernelVolume, numActIn) - vout部分
+    const int32_t *offsets,       // 累积偏移数组
+    int kernelVolume,
+    int numPlanes,
+    int numActIn
+) {
+    int ix = cuda_linear_index;
+    if (ix >= totalCount) return;
+
+    // 二分查找定位kernel位置
+    int left = 0, right = kernelVolume - 1;
+    while (left <= right) {
+        int mid = (left + right) / 2;
+        if (ix < offsets[mid + 1]) {
+          if (ix >= offsets[mid]) {
+            int kernelIdx = mid;
+            int localIdx = ix - offsets[mid];
+            // indices layout: [2, kernelVolume, numActIn]
+            int voutIdx = (kernelVolume + kernelIdx) * numActIn + localIdx;
+            int vout = indices[voutIdx];
+            int srcIdx = ix * numPlanes;
+            int dstIdx = vout * numPlanes;
+
+            // atomic add
+            #pragma unroll 4
+            for (int i = 0; i < numPlanes; ++i) {
+              atomicAdd(&outFeatures[dstIdx + i], buffer[srcIdx + i]);
+            }
+            return;
+          }
+          right = mid - 1;
+        } else {
+          left = mid + 1;
+        }
+    }
+}
+
+// gatherAllKernelV6 - 每个thread固定处理8个数据，提高资源利用率
+template <int VEC_SIZE = 8>
+__global__ void gatherAllKernelV6(
+    int totalCount,
+    half *buffer,
+    const half *features,
+    const int32_t *indices,
+    const int32_t *kernelIds,
+    const int32_t *kernelOffsets,
+    int numActIn,
+    int numPlanes
+) {
+  // 每个thread处理VEC_SIZE个元素
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int globalIdx = tid * VEC_SIZE;
+
+  if (globalIdx >= totalCount * numPlanes) return;
+
+  // 计算当前thread属于哪个位置(ix)以及在该位置内的偏移
+  int ix = globalIdx / numPlanes;
+  int planeOffset = globalIdx % numPlanes;
+
+  if (ix >= totalCount) return;
+
+  int kernelIdx = kernelIds[ix];
+  int localIdx = ix - kernelOffsets[kernelIdx];
+
+  int vin = indices[kernelIdx * numActIn + localIdx];
+  if (vin < 0 || vin >= numActIn) return;
+
+  int srcBase = vin * numPlanes;
+  int dstBase = ix * numPlanes;
+
+  // 使用half2向量化拷贝，每次处理2个half
+  int srcOffset = srcBase + planeOffset;
+  int dstOffset = dstBase + planeOffset;
+
+  // 检查是否可以对齐到half2（地址必须是2的倍数）
+  bool srcAligned = (srcOffset % 2) == 0;
+  bool dstAligned = (dstOffset % 2) == 0;
+
+  if (srcAligned && dstAligned) {
+    // 两者都对齐，可以使用half2
+    int remaining = numPlanes - planeOffset;
+    int vecCount = min(remaining / 2, VEC_SIZE / 2);
+
+    const half2* srcVec = reinterpret_cast<const half2*>(&features[srcOffset]);
+    half2* dstVec = reinterpret_cast<half2*>(&buffer[dstOffset]);
+
+    #pragma unroll
+    for (int i = 0; i < vecCount; ++i) {
+      dstVec[i] = srcVec[i];
+    }
+
+    // 处理剩余的奇数元素
+    if ((remaining % 2) && (planeOffset + vecCount * 2) < numPlanes) {
+      buffer[dstBase + planeOffset + vecCount * 2] = features[srcBase + planeOffset + vecCount * 2];
+    }
+  } else {
+    // 不对齐，使用scalar拷贝
+    #pragma unroll
+    for (int i = 0; i < VEC_SIZE; ++i) {
+      int planeIdx = planeOffset + i;
+      if (planeIdx < numPlanes) {
+        buffer[dstBase + planeIdx] = features[srcBase + planeIdx];
+      }
+    }
+  }
+}
+
+__global__ void gatherAllKernelV5(
+    int totalCount,
+    half *buffer,
+    const half *features,
+    const int32_t *indices,
+    const int32_t *kernelIds,
+    const int32_t *kernelOffsets,
+    int numActIn,
+    int numPlanes
+) {
+  int ix = cuda_linear_index;
+  if (ix >= totalCount) return;
+
+  int kernelIdx = kernelIds[ix];
+  int localIdx = ix - kernelOffsets[kernelIdx];
+
+  int vin = indices[kernelIdx * numActIn + localIdx];
+  if (vin < 0 || vin >= numActIn) return;
+
+  auto index_src = vin * numPlanes;//v_in * numPlanes
+  auto index_tar = ix * numPlanes;
+
+  // 处理对齐与矢量化
+  int src_parity = index_src & 1;
+  int tar_parity = index_tar & 1;
+  int offset = 0;
+
+  if (src_parity == tar_parity) {
+    // 两者同奇偶：可以通过拷贝一个scalar使后续地址为偶数，然后安全地使用 half2
+    if (src_parity == 1 && numPlanes > 0) {
+      buffer[index_tar] = features[index_src]; // 拷贝首个元素
+      offset = 1;
+    }
+
+    int remaining = numPlanes - offset;
+    int vec_count = remaining / 2;
+
+    // reinterpret_cast 现在安全（起始索引为偶数）
+    half2* buffer_vec = reinterpret_cast<half2*>(&buffer[index_tar + offset]);
+    const half2* features_vec = reinterpret_cast<const half2*>(&features[index_src + offset]);
+
+    #pragma unroll 4
+    for (int i = 0; i < vec_count; ++i) {
+      buffer_vec[i] = features_vec[i];
+    }
+
+    if (remaining & 1) {
+      buffer[index_tar + offset + vec_count * 2] =
+          features[index_src + offset + vec_count * 2];
+    }
+  } else {
+    // 奇偶性不同：无法对齐到同一 half2 边界
+    // 回退到安全的逐元素拷贝（或按对手动组装，不使用未对齐的 half2 指针）
+    #pragma unroll 4
+    for (int i = 0; i < numPlanes; ++i) {
+      buffer[index_tar + i] = features[index_src + i];
+    }
+  }
+}
+
+// scatterAddAllKernelV3 - 使用kernelIds和kernelOffsets直接定位，无二分查找
+__global__ void scatterAddAllKernelV3(
+    int totalCount,
+    half *outFeatures,
+    const half *buffer,
+    const int32_t *indices,
+    const int32_t *kernelIds,
+    const int32_t *kernelOffsets,
+    int numActIn,
+    int numPlanes,
+    int numActOut,
+    int kernelVolume
+) {
+  int ix = cuda_linear_index;
+  if (ix >= totalCount) return;
+
+  int kernelIdx = kernelIds[ix];
+  int localIdx = ix - kernelOffsets[kernelIdx];
+
+  int voutIdx = (kernelVolume + kernelIdx) * numActIn + localIdx;
+  int vout = indices[voutIdx];
+
+  if (vout < 0 || vout >= numActOut) return;
+
+  int srcIdx = ix * numPlanes;
+  int dstIdx = vout * numPlanes;
+
+  #pragma unroll 4
+  for (int i = 0; i < numPlanes; ++i) {
+    atomicAdd(&outFeatures[dstIdx + i], buffer[srcIdx + i]);
+  }
+}
+
+__global__ void scatterAddAllKernelV4(
+    int totalCount,
+    half *outFeatures,
+    const half *buffer,
+    const int32_t *indices,
+    const int32_t *kernelIds,
+    const int32_t *kernelOffsets,
+    int numActIn,
+    int numPlanes,
+    int numActOut,
+    int kernelVolume
+) {
+  int ix = cuda_linear_index;
+  if (ix >= totalCount) return;
+
+  int kernelIdx = kernelIds[ix];
+  int localIdx = ix - kernelOffsets[kernelIdx];
+
+  int voutIdx = (kernelVolume + kernelIdx) * numActIn + localIdx;
+  int vout = indices[voutIdx];
+
+  if (vout < 0 || vout >= numActOut) return;
+
+  int index_src = ix * numPlanes;
+  int index_tar = vout * numPlanes;
+
+  // 处理对齐与矢量化
+  int src_parity = index_src & 1;
+  int tar_parity = index_tar & 1;
+  int offset = 0;
+
+  if (src_parity == tar_parity) {
+    // 两者同奇偶：可以通过拷贝一个scalar使后续地址为偶数，然后安全地使用 half2
+    if (src_parity == 1 && numPlanes > 0) {
+      atomicAdd(&outFeatures[index_tar], buffer[index_src]);
+      offset = 1;
+    }
+
+    int remaining = numPlanes - offset;
+    int vec_count = remaining / 2;
+
+    // reinterpret_cast 现在安全（起始索引为偶数）
+    const half2* buffer_vec = reinterpret_cast<const half2*>(&buffer[index_src + offset]);
+    half2* features_vec = reinterpret_cast<half2*>(&outFeatures[index_tar + offset]);
+
+    #pragma unroll 4
+    for (int i = 0; i < vec_count; ++i) {
+      features_vec[i] += buffer_vec[i];
+    }
+
+    if (remaining & 1) {
+      atomicAdd(&outFeatures[index_tar + offset + vec_count * 2], buffer[index_src + offset + vec_count * 2]);
+    }
+  } else {
+    // 奇偶性不同：无法对齐到同一 half2 边界
+    // 回退到安全的逐元素拷贝（或按对手动组装，不使用未对齐的 half2 指针）
+    #pragma unroll 4
+    for (int i = 0; i < numPlanes; ++i) {
+      atomicAdd(&outFeatures[index_tar + i], buffer[index_src + i]);
+    }
+  }
+}
+
+// scatterAddAllKernelV5 - 每个thread固定处理8个数据，提高资源利用率
+template <int VEC_SIZE = 8>
+__global__ void scatterAddAllKernelV5(
+    int totalCount,
+    half *outFeatures,
+    const half *buffer,
+    const int32_t *indices,
+    const int32_t *kernelIds,
+    const int32_t *kernelOffsets,
+    int numActIn,
+    int numPlanes,
+    int numActOut,
+    int kernelVolume
+) {
+  // 每个thread处理VEC_SIZE个元素
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int globalIdx = tid * VEC_SIZE;
+
+  if (globalIdx >= totalCount * numPlanes) return;
+
+  // 计算当前thread属于哪个位置(ix)以及在该位置内的偏移
+  int ix = globalIdx / numPlanes;
+  int planeOffset = globalIdx % numPlanes;
+
+  if (ix >= totalCount) return;
+
+  int kernelIdx = kernelIds[ix];
+  int localIdx = ix - kernelOffsets[kernelIdx];
+
+  int voutIdx = (kernelVolume + kernelIdx) * numActIn + localIdx;
+  int vout = indices[voutIdx];
+
+  if (vout < 0 || vout >= numActOut) return;
+
+  int srcBase = ix * numPlanes;
+  int dstBase = vout * numPlanes;
+
+  // 处理VEC_SIZE个元素，考虑边界
+  #pragma unroll
+  for (int i = 0; i < VEC_SIZE; ++i) {
+    int planeIdx = planeOffset + i;
+    if (planeIdx < numPlanes) {
+      atomicAdd(&outFeatures[dstBase + planeIdx], buffer[srcBase + planeIdx]);
+    }
+  }
+}
+
+/*
+template <const int BM, const int BK, const int BN, const int TM, const int TN>
+__global__ void SgemmV6Batched(
+    int M,                    // 总输入数 totalCount
+    int N,                    // 输出维度 kernelVolume * numOutPlanes
+    int K,                    // 输入维度 numInPlanes
+    half* a,                  // 输入 (M, K)
+    half* b,                  // 权重 (kernelVolume, K, N_per_kernel) 展平
+    half* c,                  // 输出 (M, N)
+    int kernelVolume,         // kernel数量
+    int numOutPlanes          // 每个kernel的输出维度
+) {
+    const int bx = blockIdx.x;
+    const int by = blockIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    // 某个kernel的输出列范围
+    int kernelIdx = by * (BN / TN) / numOutPlanes;
+    int outColBase = (by * (BN / TN) / numOutPlanes) * numOutPlanes;
+    if (kernelIdx >= kernelVolume) return;
+
+    __shared__ half s_a[BK][BM];
+    __shared__ half s_b[BK][BN];
+
+    half r_c[TM][TN] = {0.0f};
+
+    int load_a_smem_m = (ty * blockDim.x + tx) >> 1;
+    int load_a_smem_k = ((ty * blockDim.x + tx) & 1) << 2;
+    int load_b_smem_k = (ty * blockDim.x + tx) >> 5;
+    int load_b_smem_n = ((ty * blockDim.x + tx) & 31) << 2;
+
+    int load_a_gmem_m = bx * BM + load_a_smem_m;
+    int load_b_gmem_n = by * BN + load_b_smem_n;
+
+    for (int bk = 0; bk < (K + BK - 1) / BK; bk++) {
+        // 加载A
+        if (load_a_gmem_m < M) {
+            int load_a_gmem_k = bk * BK + load_a_smem_k;
+            if (load_a_gmem_k + 3 < K) {
+                int addr = OFFSET(load_a_gmem_m, load_a_gmem_k, K);
+                s_a[load_a_smem_k + 0][load_a_smem_m] = a[addr + 0];
+                s_a[load_a_smem_k + 1][load_a_smem_m] = a[addr + 1];
+                s_a[load_a_smem_k + 2][load_a_smem_m] = a[addr + 2];
+                s_a[load_a_smem_k + 3][load_a_smem_m] = a[addr + 3];
+            }
+        }
+
+        // 加载B: 权重偏移到当前kernel位置
+        int load_b_gmem_k = bk * BK + load_b_smem_k;
+        if (load_b_gmem_k < K) {
+            int weight_offset = kernelIdx * K * numOutPlanes + load_b_gmem_k * numOutPlanes;
+            int addr = OFFSET(load_b_gmem_k, load_b_gmem_n, N);
+            if (load_b_gmem_n + 3 < numOutPlanes) {
+                HALF2(s_b[load_b_smem_k][load_b_smem_n]) = HALF2(b[weight_offset + addr]);
+                HALF2(s_b[load_b_smem_k][load_b_smem_n + 2]) = HALF2(b[weight_offset + addr + 2]);
+            }
+        }
+
+        __syncthreads();
+
+        // 计算
+        #pragma unroll
+        for (int tk = 0; tk < BK; tk++) {
+            HALF2(r_c[0]) = HALF2(s_a[tk][tx * TM / 2]);
+            HALF2(r_c[2]) = HALF2(s_a[tk][tx * TM / 2 + 2]);
+            HALF2(r_c[4]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2]);
+            HALF2(r_c[6]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2 + 2]);
+            
+            HALF2(r_c[0 + 1]) = HALF2(s_b[tk][ty * TN / 2]);
+            HALF2(r_c[2 + 1]) = HALF2(s_b[tk][ty * TN / 2 + 2]);
+            HALF2(r_c[4 + 1]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2]);
+            HALF2(r_c[6 + 1]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2 + 2]);
+
+            for (int tm = 0; tm < TM; tm += 2) {
+                for (int tn = 0; tn < TN; tn += 2) {
+                    r_c[tm][tn] += r_c[tm] * r_c[tn];
+                    r_c[tm + 1][tn] += r_c[tm + 1] * r_c[tn];
+                    r_c[tm][tn + 1] += r_c[tm] * r_c[tn + 1];
+                    r_c[tm + 1][tn + 1] += r_c[tm + 1] * r_c[tn + 1];
+                }
+            }
+        }
+
+        __syncthreads();
+    }
+
+    // 写回
+    for (int i = 0; i < TM; i++) {
+        int store_m = bx * BM + tx * TM + i;
+        for (int j = 0; j < TN; j++) {
+            int store_n = by * BN + ty * TN + j;
+            if (store_m < M && store_n < N) {
+                int out_offset = kernelIdx * numOutPlanes;
+                if (store_n >= out_offset && store_n < out_offset + numOutPlanes) {
+                    int output_idx = OFFSET(store_m, store_n - out_offset, numOutPlanes);
+                    c[output_idx] = r_c[i][j];
+                }
+            }
+        }
+    }
+}
+
+// 更简单的方案: 扩展SgemmV6支持偏移参数
+template <const int BM, const int BK, const int BN, const int TM, const int TN>
+__global__ void SgemmV6Offset(
+    int M, int N, int K,
+    half* a, half* b, half* c,
+    int weight_offset  // 权重矩阵的行偏移量
+) {
+    // 与SgemmV6相同，但b的起始地址加上weight_offset
+    const int bx = blockIdx.x;
+    const int by = blockIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    __shared__ half s_a[BK][BM];
+    __shared__ half s_b[BK][BN];
+
+    half r_c[TM][TN] = {0.0f};
+
+    int load_a_smem_m = (ty * blockDim.x + tx) >> 1;
+    int load_a_smem_k = ((ty * blockDim.x + tx) & 1) << 2;
+    int load_b_smem_k = (ty * blockDim.x + tx) >> 5;
+    int load_b_smem_n = ((ty * blockDim.x + tx) & 31) << 2;
+
+    int load_a_gmem_m = bx * BM + load_a_smem_m;
+    int load_b_gmem_n = by * BN + load_b_smem_n;
+
+    for (int bk = 0; bk < (K + BK - 1) / BK; bk++) {
+        if (load_a_gmem_m < M) {
+            int load_a_gmem_k = bk * BK + load_a_smem_k;
+            int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_gmem_k, K);
+            if (load_a_gmem_k + 3 < K) {
+                s_a[load_a_smem_k + 0][load_a_smem_m] = a[load_a_gmem_addr + 0];
+                s_a[load_a_smem_k + 1][load_a_smem_m] = a[load_a_gmem_addr + 1];
+                s_a[load_a_smem_k + 2][load_a_smem_m] = a[load_a_gmem_addr + 2];
+                s_a[load_a_smem_k + 3][load_a_smem_m] = a[load_a_gmem_addr + 3];
+            }
+        }
+
+        int load_b_gmem_k = bk * BK + load_b_smem_k;
+        if (load_b_gmem_k < K) {
+            int load_b_gmem_addr = OFFSET(load_b_gmem_k, load_b_gmem_n, N);
+            int b_addr = weight_offset + load_b_gmem_addr;
+            if (load_b_gmem_n + 3 < N) {
+                HALF2(s_b[load_b_smem_k][load_b_smem_n]) = HALF2(b[b_addr]);
+                HALF2(s_b[load_b_smem_k][load_b_smem_n + 2]) = HALF2(b[b_addr + 2]);
+            }
+        }
+
+        __syncthreads();
+
+        #pragma unroll
+        for (int tk = 0; tk < BK; tk++) {
+            HALF2(r_c[0]) = HALF2(s_a[tk][tx * TM / 2]);
+            HALF2(r_c[2]) = HALF2(s_a[tk][tx * TM / 2 + 2]);
+            HALF2(r_c[4]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2]);
+            HALF2(r_c[6]) = HALF2(s_a[tk][tx * TM / 2 + BM / 2 + 2]);
+            HALF2(r_c[0 + 1]) = HALF2(s_b[tk][ty * TN / 2]);
+            HALF2(r_c[2 + 1]) = HALF2(s_b[tk][ty * TN / 2 + 2]);
+            HALF2(r_c[4 + 1]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2]);
+            HALF2(r_c[6 + 1]) = HALF2(s_b[tk][ty * TN / 2 + BN / 2 + 2]);
+
+            for (int tm = 0; tm < TM; tm += 2) {
+                for (int tn = 0; tn < TN; tn += 2) {
+                    r_c[tm][tn] += r_c[tm] * r_c[tn];
+                    r_c[tm + 1][tn] += r_c[tm + 1] * r_c[tn];
+                    r_c[tm][tn + 1] += r_c[tm] * r_c[tn + 1];
+                    r_c[tm + 1][tn + 1] += r_c[tm + 1] * r_c[tn + 1];
+                }
+            }
+        }
+
+        __syncthreads();
+    }
+
+    for (int i = 0; i < TM; i++) {
+        int store_m = bx * BM + tx * TM + i;
+        for (int j = 0; j < TN; j++) {
+            int store_n = by * BN + ty * TN + j;
+            if (store_m < M && store_n < N) {
+                c[OFFSET(store_m, store_n, N)] = r_c[i][j];
+            }
+        }
+    }
+}
+*/
 } // namespace spconv
 
 #undef TH_ATOMIC_ADD
