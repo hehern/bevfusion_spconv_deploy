@@ -232,6 +232,10 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
         for (int i = 0; i < K - load_a_gmem_k; i++) {
           s_a[load_a_smem_k + i][load_a_smem_m] = a[load_a_gmem_addr + i];
         }
+        #pragma unroll
+        for (int i = K - load_a_gmem_k; i < 4; i++) {
+          s_a[load_a_smem_k + i][load_a_smem_m] = __float2half(0.0f);
+        }
       }
 
     }
@@ -251,6 +255,10 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
         #pragma unroll
         for (int i = 0; i < N - load_b_gmem_n; i++) {
           s_b[load_b_smem_k][load_b_smem_n + i] = b[load_b_gmem_addr + i];
+        }
+        #pragma unroll
+        for (int i = N - load_b_gmem_n; i < 4; i++) {
+          s_b[load_b_smem_k][load_b_smem_n + i] = __float2half(0.0f);
         }
       }
     }
@@ -303,29 +311,45 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
   #pragma unroll
   for (int i = 0; i < TM / 2; i++) {
     int store_c_gmem_m = bx * BM + tx * TM / 2 + i;
+    if (store_c_gmem_m >= M) {
+      continue;
+    }
     int store_c_gmem_n = by * BN + ty * TN / 2;
     int store_c_gmem_addr = OFFSET(store_c_gmem_m, store_c_gmem_n, N);
-    if (store_c_gmem_n  < N) {
+    if (store_c_gmem_n + 4 < N) {
       HALF2(c[store_c_gmem_addr + 0]) = HALF2(r_c[i][0]);
       HALF2(c[store_c_gmem_addr + 2]) = HALF2(r_c[i][2]);
       // c[store_c_gmem_addr + 0] = r_c[i][0];
       // c[store_c_gmem_addr + 1] = r_c[i][1];
       // c[store_c_gmem_addr + 2] = r_c[i][2];
       // c[store_c_gmem_addr + 3] = r_c[i][3];
+    } else {
+      #pragma unroll
+      for (int j = 0; j < N - store_c_gmem_n; j++) {
+        c[store_c_gmem_addr + j] = r_c[i][j];
+      }
     }
-    if (store_c_gmem_n + BN / 2  < N) {
+    if (store_c_gmem_n + BN / 2 + 4 < N) {
       HALF2(c[store_c_gmem_addr + 0 + BN / 2]) = HALF2(r_c[i][4 + 0]);
       HALF2(c[store_c_gmem_addr + 2 + BN / 2]) = HALF2(r_c[i][4 + 2]);
       // c[store_c_gmem_addr + 0 + BN / 2] = r_c[i][4 + 0];
       // c[store_c_gmem_addr + 1 + BN / 2] = r_c[i][4 + 1];
       // c[store_c_gmem_addr + 2 + BN / 2] = r_c[i][4 + 2];
       // c[store_c_gmem_addr + 3 + BN / 2] = r_c[i][4 + 3];
+    } else {
+      #pragma unroll
+      for (int j = 0; j < N - store_c_gmem_n - BN / 2; j++) {
+        c[store_c_gmem_addr + j + BN / 2] = r_c[i][j + 4];
+      }
     }
   }
 
   #pragma unroll
   for (int i = 0; i < TM / 2; i++) {
     int store_c_gmem_m = bx * BM + BM / 2 + tx * TM / 2 + i;
+    if (store_c_gmem_m >= M) {
+      continue;
+    }
     int store_c_gmem_n = by * BN + ty * TN / 2;
     int store_c_gmem_addr = OFFSET(store_c_gmem_m, store_c_gmem_n, N);
     if (store_c_gmem_n + 4 < N) {
@@ -335,15 +359,25 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
       // c[store_c_gmem_addr + 1] = r_c[i + TM / 2][1];
       // c[store_c_gmem_addr + 2] = r_c[i + TM / 2][2];
       // c[store_c_gmem_addr + 3] = r_c[i + TM / 2][3];
+    } else {
+      #pragma unroll
+      for (int j = 0; j < N - store_c_gmem_n; j++) {
+        c[store_c_gmem_addr + j] = r_c[i + TM / 2][j];
+      }
     }
 
-    if (store_c_gmem_n + BN / 2  < N) {
+    if (store_c_gmem_n + BN / 2 + 4 < N) {
       HALF2(c[store_c_gmem_addr + 0 + BN / 2]) = HALF2(r_c[i + TM / 2][4 + 0]);
       HALF2(c[store_c_gmem_addr + 2 + BN / 2]) = HALF2(r_c[i + TM / 2][4 + 2]);
       // c[store_c_gmem_addr + 0 + BN / 2] = r_c[i + TM / 2][4 + 0];
       // c[store_c_gmem_addr + 1 + BN / 2] = r_c[i + TM / 2][4 + 1];
       // c[store_c_gmem_addr + 2 + BN / 2] = r_c[i + TM / 2][4 + 2];
       // c[store_c_gmem_addr + 3 + BN / 2] = r_c[i + TM / 2][4 + 3];
+    } else {
+      #pragma unroll
+      for (int j = 0; j < N - store_c_gmem_n - BN / 2; j++) {
+        c[store_c_gmem_addr + j + BN / 2] = r_c[i + TM / 2][j + 4];
+      }
     }
   }
 }
