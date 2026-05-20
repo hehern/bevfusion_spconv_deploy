@@ -27,7 +27,6 @@ void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters,
   half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
   half* output_ptr = output.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  // printf("i am here \n");
   const int key = (numInPlanes << 16) | numOutPlanes;
   switch (key) {
     // case (5 << 16) | 16:   // 5x16
@@ -68,6 +67,9 @@ void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters,
     //   break;
     default:
       {
+        // dim3 __threads__(32, 32);
+        // dim3 __blocks__(divup(numActOut, 32), divup(numOutPlanes, 32));
+        // matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
         const int BM = 128;
         const int BK = 8;
         const int BN = 128;
@@ -75,11 +77,26 @@ void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters,
         const int TN = 8;
         dim3 __threads__(BM/TM, BN/TN);
         dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
-        // printf("i am here SgemmV6\n");
         SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
       }
   }
 
+}
+
+void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* output,
+                          int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
+                          void* stream) {
+  half* weight_ptr = filters.ptr<half>();
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+
+  const int BM = 128;
+  const int BK = 8;
+  const int BN = 128;
+  const int TM = 8;
+  const int TN = 8;
+  dim3 __threads__(BM/TM, BN/TN);
+  dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
+  SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output);
 }
 
 /***
@@ -145,7 +162,8 @@ void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,
 void sparse_gather_all_cuda(nv::Tensor& buffer, const nv::Tensor& features,
                             const nv::Tensor& indices, const int* kernelIds,
                             const int* kernelOffsets,
-                            int numActIn, int totalCount, void* stream) {
+                            int numActIn, int totalCount, void* stream,
+                            int kernelVolume) {
   if (totalCount <= 0) return;
 
   int numPlanes = features.size(1);
@@ -155,21 +173,9 @@ void sparse_gather_all_cuda(nv::Tensor& buffer, const nv::Tensor& features,
   half* features_ptr = features.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
 
-  // 使用V6版本：每个thread固定处理8个数据，提高资源利用率
-  const int VEC_SIZE = 8;
-  const int blockSize = 256;  // 固定256线程，充分利用SM
-
-  // 计算总数据量，每个thread处理VEC_SIZE个元素
-  int totalElements = totalCount * numPlanes;
-  int threadsNeeded = (totalElements + VEC_SIZE - 1) / VEC_SIZE;
-  int numBlocks = (threadsNeeded + blockSize - 1) / blockSize;
-
-  dim3 blocks(numBlocks);
-  dim3 threads(blockSize);
-
-  gatherAllKernelV6<VEC_SIZE><<<blocks, threads, 0, _stream>>>(
-      totalCount, buffer_ptr, features_ptr, indices_ptr, kernelIds, kernelOffsets,
-      numActIn, numPlanes);
+  // cuda_linear_launch(gatherAllKernel, _stream, totalCount, buffer_ptr, features_ptr, indices_ptr, kernelOffsets, kernelVolume, numPlanes, numActIn);
+  cuda_linear_launch(gatherAllKernelV2, _stream, totalCount, buffer_ptr, features_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes);
+  
 }
 
 void sparse_scatter_add_all_cuda(nv::Tensor& buffer, nv::Tensor& output,
@@ -187,50 +193,8 @@ void sparse_scatter_add_all_cuda(nv::Tensor& buffer, nv::Tensor& output,
   half* output_ptr = output.ptr<half>();
   int* indices_ptr = indices.ptr<int>();
 
-  // 使用V5版本：每个thread固定处理8个数据，提高资源利用率
-  const int VEC_SIZE = 8;
-  const int blockSize = 256;  // 固定256线程，充分利用SM
-
-  // 计算总数据量，每个thread处理VEC_SIZE个元素
-  int totalElements = totalCount * numPlanes;
-  int threadsNeeded = (totalElements + VEC_SIZE - 1) / VEC_SIZE;
-  int numBlocks = (threadsNeeded + blockSize - 1) / blockSize;
-
-  dim3 blocks(numBlocks);
-  dim3 threads(blockSize);
-
-  scatterAddAllKernelV5<VEC_SIZE><<<blocks, threads, 0, _stream>>>(
-      totalCount, output_ptr, buffer_ptr, indices_ptr, kernelIds, kernelOffsets,
-      numActIn, numPlanes, numActOut, kernelVolume);
+  // cuda_linear_launch(scatterAddAllKernel, _stream, totalCount, output_ptr, buffer_ptr, indices_ptr, kernelOffsets, kernelVolume, numPlanes, numActIn);
+  cuda_linear_launch(scatterAddAllKernelV2, _stream, totalCount, output_ptr, buffer_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes, numActOut, kernelVolume);
 }
-
-// 批量GEMM实现 - 使用cublas
-// void matrix_multiply_all_cuda(const nv::Tensor& inputBuffer, const nv::Tensor& filters,
-//                               nv::Tensor& outputBuffer, int totalCount,
-//                               int numInPlanes, int numOutPlanes, int kernelVolume,
-//                               void* stream) {
-//   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-
-//   half* a_ptr = inputBuffer.ptr<half>();
-//   half* b_ptr = filters.ptr<half>();
-//   half* c_ptr = outputBuffer.ptr<half>();
-
-//   // 权重已经按照 (kernelVolume, numInPlanes, numOutPlanes) 存储
-//   // 需要转换为 (numInPlanes, kernelVolume * numOutPlanes)
-
-//   // 使用自定义batch GEMM kernel
-//   const int BM = 128;
-//   const int BK = 8;
-//   const int BN = 128;
-//   const int TM = 8;
-//   const int TN = 8;
-
-//   dim3 threads(BM / TM, BN / TN);
-//   dim3 blocks(divup(totalCount, BM), divup(kernelVolume * numOutPlanes, BN));
-
-//   SgemmV6Batched<BM, BK, BN, TM, TN><<<blocks, threads, 0, _stream>>>(
-//       totalCount, kernelVolume * numOutPlanes, numInPlanes,
-//       a_ptr, b_ptr, c_ptr, kernelVolume, numOutPlanes);
-// }
 
 } // namespace spconv

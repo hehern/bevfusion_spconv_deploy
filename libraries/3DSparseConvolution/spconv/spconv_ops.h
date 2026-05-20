@@ -38,6 +38,13 @@ nv::Tensor indiceConv(nv::Tensor features,
                       int64_t numActOut,
                       bool subM, void* stream);
 
+nv::Tensor indiceConv2(nv::Tensor features, 
+                       nv::Tensor filters,
+                       nv::Tensor indicePairs, 
+                       nv::Tensor indiceNum,
+                       int64_t numActOut,
+                       bool subM, void* stream);
+
 void printFeatures(nv::Tensor features, void* stream);
 
 } // namespace spconv

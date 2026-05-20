@@ -116,9 +116,11 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,inchannel)
   nv::EventTimer timer_;
 
   auto indicePairNumCpu = indiceNum.to_host();
-
+  // timer_.start(_stream);
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
   output.fill<half>(__float2half(0.0f));
+  // output.memset(0, stream);
+  // timer_.stop("tensor fill");
 
   // init for subM
   int indicePairMaxOffset = kernelVolume / 2; // 13
@@ -142,75 +144,6 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,inchannel)
                         indicePairNumCpu.ptr<int>() + kernelVolume);
   }
 
-  /********************************************************************
-   * 批量优化版本：将多次gather/scatter合并为单次调用，减少kernel launch开销
-   ********************************************************************/
-#if 1
-  // 计算总输入/输出数量
-  int totalCount = 0;
-  int subMCenterKernel = subM ? indicePairMaxOffset : -1;
-  for (int i = 0; i < kernelVolume; ++i) {
-    if (i != subMCenterKernel) {
-      totalCount += indicePairNumCpu.ptr<int>()[i];
-    }
-  }
-
-  if (totalCount > 0) {
-    // 一次性gather所有kernel位置的输入到连续buffer
-    nv::Tensor allInputBuffer = nv::Tensor::create(
-        std::vector<int64_t>{totalCount, numInPlanes}, features.dtype(), features.device());
-    nv::Tensor allOutputBuffer = nv::Tensor::create(
-        std::vector<int64_t>{totalCount, numOutPlanes}, features.dtype(), features.device());
-
-    // 预计算每个kernel位置的偏移量和kernel标识数组
-    std::vector<int> offsets_host(kernelVolume + 1, 0);
-    std::vector<int> kernelIds_host(totalCount);
-    int currentOffset = 0;
-    for (int i = 0; i < kernelVolume; ++i) {
-      int cnt = (i != subMCenterKernel ? indicePairNumCpu.ptr<int>()[i] : 0);
-      for (int j = 0; j < cnt; ++j) {
-        kernelIds_host[j + currentOffset] = i;
-      }
-      currentOffset += cnt;
-      offsets_host[i + 1] = currentOffset;
-    }
-
-    nv::Tensor offsetsTensor = nv::Tensor::create(std::vector<int64_t>{kernelVolume + 1}, nv::DataType::Int32, true);
-    offsetsTensor.copy_from_host(offsets_host.data(), stream);
-
-    nv::Tensor kernelIdsTensor = nv::Tensor::create(std::vector<int64_t>{totalCount}, nv::DataType::Int32, true);
-    kernelIdsTensor.copy_from_host(kernelIds_host.data(), stream);
-
-    // 一次性gather
-    sparse_gather_all_cuda(allInputBuffer, features, indicePairs, kernelIdsTensor.ptr<int>(),
-                           offsetsTensor.ptr<int>(), numActIn, totalCount, stream);
-
-    // 按kernel位置循环执行GEMM
-    currentOffset = 0;
-    for (int i = 0; i < kernelVolume; ++i) {
-      if (i == subMCenterKernel) continue;
-      auto nHot = indicePairNumCpu.ptr<int>()[i];
-      if (nHot <= 0) continue;
-
-      half* input_ptr = allInputBuffer.ptr<half>() + currentOffset * numInPlanes;
-      half* output_ptr = allOutputBuffer.ptr<half>() + currentOffset * numOutPlanes;
-
-      nv::Tensor inputRef = nv::Tensor::from_data_reference(
-          input_ptr, std::vector<int64_t>{nHot, numInPlanes}, features.dtype(), true);
-      nv::Tensor outputRef = nv::Tensor::from_data_reference(
-          output_ptr, std::vector<int64_t>{nHot, numOutPlanes}, features.dtype(), true);
-
-      matrix_multiply_cuda(inputRef, filters, outputRef, nHot, numOutPlanes, numInPlanes, i, stream);
-
-      currentOffset += nHot;
-    }
-
-    // 一次性scatter所有结果回output
-    sparse_scatter_add_all_cuda(allOutputBuffer, output, indicePairs, kernelIdsTensor.ptr<int>(),
-                                offsetsTensor.ptr<int>(), numActIn, totalCount, stream, kernelVolume);
-  }
-
-#else
   // 原版本：逐kernel循环
   // 按照rulebook逐卷积核元素计算
   nv::Tensor inputBuffer = nv::Tensor::create(std::vector<int64_t>{indicePairMaxSize, numInPlanes}, features.dtype(), features.device());
@@ -232,10 +165,117 @@ nv::Tensor indiceConv(nv::Tensor features,    // 输入特征(N,inchannel)
     sparse_scatter_add_cuda(outputBuffer, output, indicePairs, nHot, (kernelVolume+i)*numActIn, stream);//将结果填充到output中去
     // timer_.stop("sparse_scatter_add_cuda");
   }
-#endif
 
-  // auto outputHost = output.to_host(stream);
-  // std::cout << "indiceConv output tohost" << std::endl;
+  return output;
+}
+
+nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
+                       nv::Tensor filters,     // eg:权重[3*3*3,5,16],5为输入channel个数，16为输出channel个数
+                       nv::Tensor indicePairs, // [2, 27, N]
+                       nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
+                       int64_t numActOut,      // 输出有效voxel个数，暂时可以用M表示
+                       bool subM,              // 子流线卷积默认 true
+                       void* stream) {
+
+  auto kernelVolume = indiceNum.size(0); // 27
+  auto numInPlanes = features.size(1);   // 5
+  auto numOutPlanes = filters.size(2);   // 16
+  auto numActIn = indicePairs.size(2);
+
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  nv::EventTimer timer_;
+
+  auto indicePairNumCpu = indiceNum.to_host();
+  // timer_.start(_stream);
+  nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
+  output.fill<half>(__float2half(0.0f));
+  // output.memset(0, stream);
+  // timer_.stop("tensor fill");
+
+  // init for subM
+  int indicePairMaxOffset = kernelVolume / 2; // 13
+  int indicePairMaxSize = numActOut;          // N
+  if (subM) { // the center index of subm conv don't need gather and scatter
+    // add.
+    // timer_.start(_stream);
+    matrix_multiply_cuda(features, filters, output, numActOut, numOutPlanes, numInPlanes, indicePairMaxOffset, stream);
+    // timer_.stop("matrix_multiply_cuda");
+
+    // get indice pair second max size based on subM symmetric property
+    indicePairMaxSize =
+      *std::max_element(indicePairNumCpu.ptr<int>(),
+                        indicePairNumCpu.ptr<int>() + indicePairMaxOffset);
+    if (indicePairMaxSize == 0) {//subm情况下，最大的indicePairSize肯定是kernel中心点，现在计算的是第二大，如果第二大为0的话，表示每次conv没有非kernel中心点参与卷积，直接返回计算就结束了
+      return output;
+    }
+  } else {
+    indicePairMaxSize =
+      *std::max_element(indicePairNumCpu.ptr<int>(),
+                        indicePairNumCpu.ptr<int>() + kernelVolume);
+  }
+
+  // 计算总输入/输出数量
+  int totalCount = 0;
+  int subMCenterKernel = subM ? indicePairMaxOffset : -1;
+  const int* indiceNumPtr = indicePairNumCpu.ptr<int>();
+  for (int i = 0; i < kernelVolume; ++i) {
+    if (i != subMCenterKernel) {
+      totalCount += indiceNumPtr[i];
+    }
+  }
+
+  if (totalCount <= 0) {
+    return output;
+  }
+
+  // 一次性gather所有kernel位置的输入到连续buffer
+  nv::Tensor allInputBuffer = nv::Tensor::create(
+      std::vector<int64_t>{totalCount, numInPlanes}, features.dtype(), features.device());
+  nv::Tensor allOutputBuffer = nv::Tensor::create(
+      std::vector<int64_t>{totalCount, numOutPlanes}, features.dtype(), features.device());
+
+  // 预计算每个kernel位置的偏移量和kernel标识数组
+  std::vector<int> offsets_host(kernelVolume + 1, 0);
+  std::vector<int> kernelIds_host;
+  kernelIds_host.reserve(totalCount);
+  
+  for (int i = 0; i < kernelVolume; ++i) {
+    int cnt = (i != subMCenterKernel ? indiceNumPtr[i] : 0);
+    offsets_host[i + 1] = offsets_host[i] + cnt;
+    kernelIds_host.insert(kernelIds_host.end(), cnt, i);
+  }
+
+  nv::Tensor offsetsTensor = nv::Tensor::create(std::vector<int64_t>{kernelVolume + 1}, nv::DataType::Int32, true);
+  offsetsTensor.copy_from_host(offsets_host.data(), stream);
+
+  nv::Tensor kernelIdsTensor = nv::Tensor::create(std::vector<int64_t>{totalCount}, nv::DataType::Int32, true);
+  kernelIdsTensor.copy_from_host(kernelIds_host.data(), stream);
+
+  // 一次性gather
+  sparse_gather_all_cuda(allInputBuffer, features, indicePairs, kernelIdsTensor.ptr<int>(),
+                         offsetsTensor.ptr<int>(), numActIn, totalCount, stream, kernelVolume);
+
+  // 按kernel位置循环执行GEMM
+  half* inputBase = allInputBuffer.ptr<half>();
+  half* outputBase = allOutputBuffer.ptr<half>();
+  int currentOffset = 0;
+
+  for (int i = 0; i < kernelVolume; ++i) {
+    if (i == subMCenterKernel) continue;
+    auto nHot = indiceNumPtr[i];
+    if (nHot <= 0) continue;
+
+    matrix_multiply_cuda(inputBase + currentOffset * numInPlanes, filters, 
+                         outputBase + currentOffset * numOutPlanes,
+                         nHot, numOutPlanes, numInPlanes, i, stream);
+
+    currentOffset += nHot;
+  }
+
+  // 一次性scatter所有结果回output
+  sparse_scatter_add_all_cuda(allOutputBuffer, output, indicePairs, kernelIdsTensor.ptr<int>(),
+                              offsetsTensor.ptr<int>(), numActIn, totalCount, stream, kernelVolume);
+
   return output;
 }
 
