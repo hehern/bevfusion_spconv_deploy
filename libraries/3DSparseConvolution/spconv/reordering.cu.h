@@ -1325,8 +1325,109 @@ __global__ void scatterAddAllKernelV2(
   }
 }
 
+// scatterAddAllKernelV3 - 每线程 ELEMENTS_PER_THREAD=8 个元素
+// numPlanes >  8: 多线程协作一个position, 每线程8次atomic
+__global__ void scatterAddAllKernelV3(
+  int totalCount,
+  half *outFeatures,
+  const half *buffer,
+  const int32_t *indices,
+  const int32_t *kernelIds,
+  const int32_t *kernelOffsets,
+  int numActIn,
+  int numPlanes,
+  int numActOut,
+  int kernelVolume
+) {
+  const int ELEMENTS_PER_THREAD = 8;
+  int globalTid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // 多线程协作一个position, 每线程处理 ELEMENTS_PER_THREAD 个元素
+  int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+  int positionIdx = globalTid / threadsPerPosition;
+  int laneInPosition = globalTid % threadsPerPosition;
+
+  if (positionIdx >= totalCount) return;
+
+  int kernelIdx = kernelIds[positionIdx];
+  int localIdx = positionIdx - kernelOffsets[kernelIdx];
+  int vout = indices[(kernelVolume + kernelIdx) * numActIn + localIdx];
+  if (vout < 0 || vout >= numActOut) return;
+
+  int srcBase = positionIdx * numPlanes;
+  int dstBase = vout * numPlanes;
+  int startPlane = laneInPosition * ELEMENTS_PER_THREAD;
+
+  #pragma unroll
+  for (int i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+    int planeIdx = startPlane + i;
+    if (planeIdx < numPlanes) {
+      atomicAdd(&outFeatures[dstBase + planeIdx], buffer[srcBase + planeIdx]);
+    }
+  }
+}
+
+// gatherAllKernelUnified - 统一 gather kernel
+// numPlanes <= 8: 每个线程处理一个 position
+// numPlanes > 8: 每个线程处理 8 个元素
+__global__ void gatherAllKernelUnified(
+  int totalCount,
+  half *buffer,
+  const half *features,
+  const int32_t *indices,
+  const int32_t *kernelIds,
+  const int32_t *kernelOffsets,
+  int numActIn,
+  int numPlanes
+) {
+  const int ELEMENTS_PER_THREAD = 8;
+  int globalTid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (numPlanes <= 8) {
+    // ===== 策略A：每个线程处理一个 position（使用 gatherAllKernelV2 的逻辑）=====
+    int ix = globalTid;
+    if (ix >= totalCount) return;
+
+    int kernelIdx = kernelIds[ix];
+    int localIdx = ix - kernelOffsets[kernelIdx];
+
+    int vin = indices[kernelIdx * numActIn + localIdx];
+    if (vin < 0 || vin >= numActIn) return;
+
+    auto index_src = vin * numPlanes;
+    auto index_tar = ix * numPlanes;
+
+    #pragma unroll
+    for (int i = 0; i < numPlanes; ++i) {
+      buffer[index_tar + i] = features[index_src + i];
+    }
+  } else {
+    // ===== 策略B：每个线程处理 ELEMENTS_PER_THREAD 个元素 =====
+    int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+    int positionIdx = globalTid / threadsPerPosition;
+    int laneInPosition = globalTid % threadsPerPosition;
+
+    if (positionIdx >= totalCount) return;
+
+    int kernelIdx = kernelIds[positionIdx];
+    int localIdx = positionIdx - kernelOffsets[kernelIdx];
+    int vin = indices[kernelIdx * numActIn + localIdx];
+    if (vin < 0 || vin >= numActIn) return;
+
+    int srcBase = vin * numPlanes;
+    int dstBase = positionIdx * numPlanes;
+
+    int startPlane = laneInPosition * ELEMENTS_PER_THREAD;
+
+    #pragma unroll
+    for (int i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+      int planeIdx = startPlane + i;
+      if (planeIdx < numPlanes) {
+        buffer[dstBase + planeIdx] = features[srcBase + planeIdx];
+      }
+    }
+  }
+}
+
 } // namespace spconv
-
-#undef TH_ATOMIC_ADD
-
 #endif

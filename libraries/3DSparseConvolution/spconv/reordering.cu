@@ -174,7 +174,33 @@ void sparse_gather_all_cuda(nv::Tensor& buffer, const nv::Tensor& features,
   int* indices_ptr = indices.ptr<int>();
 
   // cuda_linear_launch(gatherAllKernel, _stream, totalCount, buffer_ptr, features_ptr, indices_ptr, kernelOffsets, kernelVolume, numPlanes, numActIn);
-  cuda_linear_launch(gatherAllKernelV2, _stream, totalCount, buffer_ptr, features_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes);
+  // cuda_linear_launch(gatherAllKernelV2, _stream, totalCount, buffer_ptr, features_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes);
+  // return;
+
+  // 根据 numPlanes 选择不同的 grid 配置
+  const int blockSize = 256;
+  int numBlocks;
+  
+  if (numPlanes <= 8) {
+    // 策略A：每个线程处理一个 position
+    numBlocks = (totalCount + blockSize - 1) / blockSize;
+  } else {
+    // 策略B：每个线程处理 8 个元素
+    const int ELEMENTS_PER_THREAD = 8;
+    int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+    int totalThreads = totalCount * threadsPerPosition;
+    numBlocks = (totalThreads + blockSize - 1) / blockSize;
+  }
+  // printf("sparse_gather_all_cuda: totalCount=%d, numPlanes=%d, blockSize=%d, numBlocks=%d\n", totalCount, numPlanes, blockSize, numBlocks);
+  
+  // 限制 grid size
+  if (numBlocks > 65535) numBlocks = 65535;
+  
+  dim3 blocks(numBlocks);
+  dim3 threads(blockSize);
+  
+  gatherAllKernelUnified<<<blocks, threads, 0, _stream>>>(
+      totalCount, buffer_ptr, features_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes);
   
 }
 
@@ -194,7 +220,25 @@ void sparse_scatter_add_all_cuda(nv::Tensor& buffer, nv::Tensor& output,
   int* indices_ptr = indices.ptr<int>();
 
   // cuda_linear_launch(scatterAddAllKernel, _stream, totalCount, output_ptr, buffer_ptr, indices_ptr, kernelOffsets, kernelVolume, numPlanes, numActIn);
-  cuda_linear_launch(scatterAddAllKernelV2, _stream, totalCount, output_ptr, buffer_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes, numActOut, kernelVolume);
+  // cuda_linear_launch(scatterAddAllKernelV2, _stream, totalCount, output_ptr, buffer_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes, numActOut, kernelVolume);
+
+  // 根据 numPlanes 选择不同的 grid 配置
+  const int blockSize = 256;
+  int numBlocks;
+
+  // 策略：每线程处理 8 个元素
+  const int ELEMENTS_PER_THREAD = 8;
+  int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+  int totalThreads = totalCount * threadsPerPosition;
+  numBlocks = (totalThreads + blockSize - 1) / blockSize;
+
+  if (numBlocks > 65535) numBlocks = 65535;
+
+  dim3 blocks(numBlocks);
+  dim3 threads(blockSize);
+
+  scatterAddAllKernelV3<<<blocks, threads, 0, _stream>>>(
+      totalCount, output_ptr, buffer_ptr, indices_ptr, kernelIds, kernelOffsets, numActIn, numPlanes, numActOut, kernelVolume);
 }
 
 } // namespace spconv

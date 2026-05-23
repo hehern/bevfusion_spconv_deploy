@@ -75,15 +75,18 @@ void SparseConvolution::forward(void *stream) {
   // }
   // step1:查找/计算rulebook
   std::vector<nv::Tensor> datas = SparseDTensor::find_indice_pair(rulebook_);
+  cudaStream_t _stream = static_cast<cudaStream_t>(stream);
   if (datas.empty()) {
     // std::cout << "no rulebook" << std::endl;
+    // timer_.start(_stream);
     datas = getIndicePairs(input_[0]->indices(), out_spatial_shape_, input_spatial_shape_, kernel_size_, stride_, padding_, dilation_, submanifold_, stream);
     SparseDTensor::add_rulebook(rulebook_, datas);
+    // timer_.stop("getIndicePairs done");
     // std::cout << "add rulebook done" << std::endl;
   }
 
   // step2:conv计算
-  nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
+  nv::Tensor result = indiceConv2(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
   addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
 
   // judgeIndicesOutshape(datas[0], out_spatial_shape_, stream);
