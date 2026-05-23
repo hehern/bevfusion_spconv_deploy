@@ -43,7 +43,9 @@ nv::Tensor indiceConv2(nv::Tensor features,
                        nv::Tensor indicePairs, 
                        nv::Tensor indiceNum,
                        int64_t numActOut,
-                       bool subM, void* stream);
+                       bool subM,
+                       const std::string &rulebook,
+                       void* stream);
 
 void printFeatures(nv::Tensor features, void* stream);
 

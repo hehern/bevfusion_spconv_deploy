@@ -1,6 +1,9 @@
 #include <limits>
 #include <iostream>
 #include <algorithm>
+#include <map>
+#include <utility>
+#include <string>
 
 #include <cuda_fp16.h>
 
@@ -175,6 +178,7 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
                        nv::Tensor indiceNum,   // [27]，用于保存卷积核每一个位置上的总的计算的次数
                        int64_t numActOut,      // 输出有效voxel个数，暂时可以用M表示
                        bool subM,              // 子流线卷积默认 true
+                       const std::string &rulebook,
                        void* stream) {
 
   auto kernelVolume = indiceNum.size(0); // 27
@@ -186,11 +190,9 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
   nv::EventTimer timer_;
 
   auto indicePairNumCpu = indiceNum.to_host();
-  // timer_.start(_stream);
+
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
   output.fill<half>(__float2half(0.0f));
-  // output.memset(0, stream);
-  // timer_.stop("tensor fill");
 
   // init for subM
   int indicePairMaxOffset = kernelVolume / 2; // 13
@@ -229,27 +231,59 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
   }
 
   // 一次性gather所有kernel位置的输入到连续buffer
-  nv::Tensor allInputBuffer = nv::Tensor::create(
-      std::vector<int64_t>{totalCount, numInPlanes}, features.dtype(), features.device());
-  nv::Tensor allOutputBuffer = nv::Tensor::create(
-      std::vector<int64_t>{totalCount, numOutPlanes}, features.dtype(), features.device());
+  // static缓存: rulebook相同则totalCount相同, 复用避免反复cudaMalloc
+  static std::map<std::pair<int64_t, int64_t>, nv::Tensor> inputBuffer_cache;
+  static std::map<std::pair<int64_t, int64_t>, nv::Tensor> outputBuffer_cache;
 
-  // 预计算每个kernel位置的偏移量和kernel标识数组
-  std::vector<int> offsets_host(kernelVolume + 1, 0);
-  std::vector<int> kernelIds_host;
-  kernelIds_host.reserve(totalCount);
-  
-  for (int i = 0; i < kernelVolume; ++i) {
-    int cnt = (i != subMCenterKernel ? indiceNumPtr[i] : 0);
-    offsets_host[i + 1] = offsets_host[i] + cnt;
-    kernelIds_host.insert(kernelIds_host.end(), cnt, i);
+  nv::Tensor allInputBuffer;
+  auto inKey = std::make_pair(totalCount, numInPlanes);
+  auto inIt = inputBuffer_cache.find(inKey);
+  if (inIt == inputBuffer_cache.end()) {
+    allInputBuffer = nv::Tensor::create(
+        std::vector<int64_t>{totalCount, numInPlanes}, features.dtype(), features.device());
+    inputBuffer_cache[inKey] = allInputBuffer;
+  } else {
+    allInputBuffer = inIt->second;
   }
 
-  nv::Tensor offsetsTensor = nv::Tensor::create(std::vector<int64_t>{kernelVolume + 1}, nv::DataType::Int32, true);
-  offsetsTensor.copy_from_host(offsets_host.data(), stream);
+  nv::Tensor allOutputBuffer;
+  auto outKey = std::make_pair(totalCount, numOutPlanes);
+  auto outIt = outputBuffer_cache.find(outKey);
+  if (outIt == outputBuffer_cache.end()) {
+    allOutputBuffer = nv::Tensor::create(
+        std::vector<int64_t>{totalCount, numOutPlanes}, features.dtype(), features.device());
+    outputBuffer_cache[outKey] = allOutputBuffer;
+  } else {
+    allOutputBuffer = outIt->second;
+  }
 
-  nv::Tensor kernelIdsTensor = nv::Tensor::create(std::vector<int64_t>{totalCount}, nv::DataType::Int32, true);
-  kernelIdsTensor.copy_from_host(kernelIds_host.data(), stream);
+  // 预计算每个kernel位置的偏移量和kernel标识数组
+  // static缓存: rulebook相同则数据相同, 避免反复计算和host→device拷贝
+  static std::map<std::string, std::pair<nv::Tensor, nv::Tensor>> offsets_kernels_cache;
+  nv::Tensor offsetsTensor, kernelIdsTensor;
+  auto it = offsets_kernels_cache.find(rulebook);
+  if (it != offsets_kernels_cache.end()) {
+    offsetsTensor  = it->second.first;
+    kernelIdsTensor = it->second.second;
+  } else {
+    std::vector<int> offsets_host(kernelVolume + 1, 0);
+    std::vector<int> kernelIds_host;
+    kernelIds_host.reserve(totalCount);
+
+    for (int i = 0; i < kernelVolume; ++i) {
+      int cnt = (i != subMCenterKernel ? indiceNumPtr[i] : 0);
+      offsets_host[i + 1] = offsets_host[i] + cnt;
+      kernelIds_host.insert(kernelIds_host.end(), cnt, i);
+    }
+
+    offsetsTensor = nv::Tensor::create(std::vector<int64_t>{kernelVolume + 1}, nv::DataType::Int32, true);
+    offsetsTensor.copy_from_host(offsets_host.data(), stream);
+
+    kernelIdsTensor = nv::Tensor::create(std::vector<int64_t>{totalCount}, nv::DataType::Int32, true);
+    kernelIdsTensor.copy_from_host(kernelIds_host.data(), stream);
+
+    offsets_kernels_cache[rulebook] = {offsetsTensor, kernelIdsTensor};
+  }
 
   // 一次性gather
   sparse_gather_all_cuda(allInputBuffer, features, indicePairs, kernelIdsTensor.ptr<int>(),

@@ -86,7 +86,7 @@ void SparseConvolution::forward(void *stream) {
   }
 
   // step2:conv计算
-  nv::Tensor result = indiceConv2(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
+  nv::Tensor result = indiceConv2(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, rulebook_, stream);
   addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
 
   // judgeIndicesOutshape(datas[0], out_spatial_shape_, stream);
