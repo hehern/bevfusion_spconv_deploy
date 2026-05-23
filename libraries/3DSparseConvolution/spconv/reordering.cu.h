@@ -118,6 +118,18 @@ __global__ void SgemmV2(int M, int N, int K, const half* a, const half* b, half*
   int load_a_gmem_m = bx * BM + load_a_smem_m; // 全局横坐标（bx M方向第几个线程块）
   int load_b_gmem_n = by * BN + load_b_smem_n; // 全局竖坐标 by N方向第几个线程块
 
+
+  s_a[load_a_smem_m][load_a_smem_k + 0] = __float2half(0.0f);
+  s_a[load_a_smem_m][load_a_smem_k + 1] = __float2half(0.0f);
+  s_a[load_a_smem_m][load_a_smem_k + 2] = __float2half(0.0f);
+  s_a[load_a_smem_m][load_a_smem_k + 3] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 0] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 1] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 2] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 3] = __float2half(0.0f);
+  __syncthreads();
+
+
   // 把线程块对应的数据搬运到共享内存
   for (int bk = 0; bk < (K + BK - 1) / BK; bk++) {
     // 搬运A数据
@@ -133,9 +145,9 @@ __global__ void SgemmV2(int M, int N, int K, const half* a, const half* b, half*
         for (int i = 0; i < K - load_a_gmem_k; i++) {
           s_a[load_a_smem_m][load_a_smem_k + i] = a[load_a_gmem_addr + i];
         }
-        for (int i = K - load_a_gmem_k; i < 4; i++) {
-          s_a[load_a_smem_m][load_a_smem_k + i] = __float2half(0.0f);
-        }
+        // for (int i = K - load_a_gmem_k; i < 4; i++) {//K最小为5,这里不会出现负数，没问题,这行必须有，否则BK填不满如K=5的情况下会和B对应的随机变量相乘
+        //   s_a[load_a_smem_m][load_a_smem_k + i] = __float2half(0.0f);
+        // }
       }
     }
 
@@ -152,9 +164,9 @@ __global__ void SgemmV2(int M, int N, int K, const half* a, const half* b, half*
         for (int i = 0; i < N - load_b_gmem_n; i++) {
           s_b[load_b_smem_k][load_b_smem_n + i] = b[load_b_gmem_addr + i];
         }
-        for (int i = N - load_b_gmem_n; i < 4; i++) {
-          s_b[load_b_smem_k][load_b_smem_n + i] = __float2half(0.0f);
-        }
+        // for (int i = N - load_b_gmem_n; i < 4; i++) {//注意这里i会出现负数的情况会出问题，所以要删掉！！！
+        //   s_b[load_b_smem_k][load_b_smem_n + i] = __float2half(0.0f);
+        // }
       }
     }
     __syncthreads();
@@ -217,6 +229,16 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
   int load_a_gmem_m = bx * BM + load_a_smem_m;
   int load_b_gmem_n = by * BN + load_b_smem_n;
 
+  s_a[load_a_smem_k + 0][load_a_smem_m] = __float2half(0.0f);
+  s_a[load_a_smem_k + 1][load_a_smem_m] = __float2half(0.0f);
+  s_a[load_a_smem_k + 2][load_a_smem_m] = __float2half(0.0f);
+  s_a[load_a_smem_k + 3][load_a_smem_m] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 0] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 1] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 2] = __float2half(0.0f);
+  s_b[load_b_smem_k][load_b_smem_n + 3] = __float2half(0.0f);
+  __syncthreads();
+
   for (int bk = 0; bk < (K + BK - 1) / BK; bk++) {
     if (load_a_gmem_m < M) {
       // 需要先对A进行一次转置，先将数据存储在寄存器中，数据按行取，按列存
@@ -231,10 +253,6 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
         #pragma unroll
         for (int i = 0; i < K - load_a_gmem_k; i++) {
           s_a[load_a_smem_k + i][load_a_smem_m] = a[load_a_gmem_addr + i];
-        }
-        #pragma unroll
-        for (int i = K - load_a_gmem_k; i < 4; i++) {
-          s_a[load_a_smem_k + i][load_a_smem_m] = __float2half(0.0f);
         }
       }
 
@@ -255,10 +273,6 @@ __global__ void SgemmV6(int M, int N, int K, half* a, half* b, half* c) {
         #pragma unroll
         for (int i = 0; i < N - load_b_gmem_n; i++) {
           s_b[load_b_smem_k][load_b_smem_n + i] = b[load_b_gmem_addr + i];
-        }
-        #pragma unroll
-        for (int i = N - load_b_gmem_n; i < 4; i++) {
-          s_b[load_b_smem_k][load_b_smem_n + i] = __float2half(0.0f);
         }
       }
     }
