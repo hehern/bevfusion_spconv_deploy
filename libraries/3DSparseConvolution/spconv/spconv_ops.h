@@ -48,6 +48,7 @@ nv::Tensor indiceConv2(nv::Tensor features,
                        void* stream);
 
 void printFeatures(nv::Tensor features, void* stream);
+void clear_indice_cache();
 
 } // namespace spconv
 #endif

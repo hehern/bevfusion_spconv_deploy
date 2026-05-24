@@ -12,6 +12,18 @@
 #include "common/timer.hpp"
 namespace spconv {
 
+// indiceConv2 的 static 缓存
+// buffer缓存不清除(cudaFree开销极大), offsets缓存随rulebook失效需清除
+static std::map<std::pair<int64_t, int64_t>, nv::Tensor> g_inputBuffer_cache;
+static std::map<std::pair<int64_t, int64_t>, nv::Tensor> g_outputBuffer_cache;
+static std::map<std::string, std::pair<nv::Tensor, nv::Tensor>> g_offsets_kernels_cache;
+
+void clear_indice_cache() {
+  // g_inputBuffer_cache.clear(); //这两个暂时不clear，因为比较耗时，但是随着代码运行会不停因为active voxel个数不一样，会逐渐push
+  // g_outputBuffer_cache.clear();
+  g_offsets_kernels_cache.clear();
+}
+
 /*
   in:
   indices:nv::Tensor, shape:{num_voxels:n, indices_dim:4},每个active voxel的坐标(batch,x,y,z)
@@ -192,7 +204,7 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
   auto indicePairNumCpu = indiceNum.to_host();
 
   nv::Tensor output = nv::Tensor::create(std::vector<int64_t>{numActOut, numOutPlanes}, features.dtype(), features.device());
-  output.fill<half>(__float2half(0.0f));
+  output.memset(0, stream);//其实清不清零都无所谓
 
   // init for subM
   int indicePairMaxOffset = kernelVolume / 2; // 13
@@ -232,8 +244,8 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
 
   // 一次性gather所有kernel位置的输入到连续buffer
   // static缓存: rulebook相同则totalCount相同, 复用避免反复cudaMalloc
-  static std::map<std::pair<int64_t, int64_t>, nv::Tensor> inputBuffer_cache;
-  static std::map<std::pair<int64_t, int64_t>, nv::Tensor> outputBuffer_cache;
+  auto& inputBuffer_cache  = g_inputBuffer_cache;
+  auto& outputBuffer_cache = g_outputBuffer_cache;
 
   nv::Tensor allInputBuffer;
   auto inKey = std::make_pair(totalCount, numInPlanes);
@@ -259,7 +271,7 @@ nv::Tensor indiceConv2(nv::Tensor features,    // 输入特征(N,inchannel)
 
   // 预计算每个kernel位置的偏移量和kernel标识数组
   // static缓存: rulebook相同则数据相同, 避免反复计算和host→device拷贝
-  static std::map<std::string, std::pair<nv::Tensor, nv::Tensor>> offsets_kernels_cache;
+  auto& offsets_kernels_cache = g_offsets_kernels_cache;
   nv::Tensor offsetsTensor, kernelIdsTensor;
   auto it = offsets_kernels_cache.find(rulebook);
   if (it != offsets_kernels_cache.end()) {
