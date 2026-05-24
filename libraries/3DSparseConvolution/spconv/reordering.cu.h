@@ -1134,7 +1134,39 @@ __global__ void addBiasAndReluKernel(int num_act, half* features, const half* bi
       feature[ilp] = feature[ilp] > __half(0.0) ? feature[ilp] : __half(0.0);
     }
   }
-  
+}
+
+__global__ void addBiasAndReluKernelV2(int num_act, half* features, const half* bias,
+                                     int numPlanes, bool relu) {
+  const int ELEMENTS_PER_THREAD = 8;
+  int globalTid = blockIdx.x * blockDim.x + threadIdx.x;
+  int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+  int positionIdx = globalTid / threadsPerPosition;
+  int laneInPosition = globalTid % threadsPerPosition;
+
+  if (positionIdx >= num_act) return;
+
+  half* feature = features + positionIdx * numPlanes;
+  int startPlane = laneInPosition * ELEMENTS_PER_THREAD;
+
+  if (relu) {
+    #pragma unroll
+    for (int i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+      int planeIdx = startPlane + i;
+      if (planeIdx < numPlanes) {
+        half val = feature[planeIdx] + bias[planeIdx];
+        feature[planeIdx] = val > __float2half(0.0f) ? val : __float2half(0.0f);
+      }
+    }
+  } else {
+    #pragma unroll
+    for (int i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+      int planeIdx = startPlane + i;
+      if (planeIdx < numPlanes) {
+        feature[planeIdx] += bias[planeIdx];
+      }
+    }
+  }
 }
 
 /************************************************************************

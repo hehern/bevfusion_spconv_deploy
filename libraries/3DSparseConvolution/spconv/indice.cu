@@ -137,36 +137,26 @@ int create_conv_indice_pair_p2_cuda(
 
 nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream) {
 
-  // 获取输入张量的元素数量
   int64_t num = src_tensor.shape[0];
   if (num == 0) {
-      // 如果输入张量为空，直接返回一个空张量
       return nv::Tensor::create(std::vector<int64_t>{0}, nv::DataType::Int32);
   }
 
-  // 将 void* 类型的流转换为 CUDA 流
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  // 同步 CUDA 流，确保之前的操作完成
+  int* begin = src_tensor.ptr<int>();
+  int* end = begin + num;
+
+  // stream-aware sort + unique: 用thrust::cuda::par.on避免默认流同步
+  auto policy = thrust::cuda::par.on(_stream);
+  thrust::sort(policy, begin, end);
+  int* unique_end = thrust::unique(policy, begin, end);
+
   checkRuntime(cudaStreamSynchronize(_stream));
 
-  // 对输入张量的数据进行排序（原地排序）
-  thrust::sort(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
-
-  // 使用 Thrust 去重操作，返回去重后的末尾迭代器
-  int* unique_end = thrust::unique(thrust::device, src_tensor.ptr<int>(), src_tensor.ptr<int>() + num);
-
-  // 计算唯一元素的数量
-  int64_t unique_count = unique_end - src_tensor.ptr<int>();
-
-  // 创建一个新的张量，存储唯一元素
-  nv::Tensor tar_tensor = nv::Tensor::from_data(
-    src_tensor.ptr<int>(),                          // 唯一元素的起始地址
-    std::vector<int64_t>{unique_count},             // 唯一元素的数量
-    nv::DataType::Int32                             // 数据类型为 Int32
-  );
-
-  return tar_tensor; // 返回包含唯一元素的张量
+  int64_t unique_count = unique_end - begin;
+  return nv::Tensor::from_data(
+    begin, std::vector<int64_t>{unique_count}, nv::DataType::Int32);
 }
 
 void judgeIndicesOutshape(nv::Tensor indices,

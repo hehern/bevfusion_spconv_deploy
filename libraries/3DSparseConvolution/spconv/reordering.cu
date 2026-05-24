@@ -151,7 +151,18 @@ void addBiasAndRelu(nv::Tensor features, nv::Tensor bias,
 
   half* features_ptr = features.ptr<half>();
   half* bias_ptr = bias.ptr<half>();
-  cuda_linear_launch(addBiasAndReluKernel, _stream, num_act, features_ptr, bias_ptr, numPlanes, Relu);
+  // cuda_linear_launch(addBiasAndReluKernel, _stream, num_act, features_ptr, bias_ptr, numPlanes, Relu);
+  
+  // 按numPlanes调整grid: 每线程处理8个plane
+  const int ELEMENTS_PER_THREAD = 8;
+  int threadsPerPosition = (numPlanes + ELEMENTS_PER_THREAD - 1) / ELEMENTS_PER_THREAD;
+  int totalThreads = num_act * threadsPerPosition;
+  const int blockSize = 256;
+  int numBlocks = (totalThreads + blockSize - 1) / blockSize;
+  if (numBlocks > 65535) numBlocks = 65535;
+  dim3 blocks(numBlocks);
+  dim3 threads(blockSize);
+  addBiasAndReluKernelV2<<<blocks, threads, 0, _stream>>>(num_act, features_ptr, bias_ptr, numPlanes, Relu);
 
 }
 
