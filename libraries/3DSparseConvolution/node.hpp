@@ -4,6 +4,7 @@
 #include <cuda_fp16.h>
 #include <vector>
 #include "sparse-tensor.hpp"
+#include "common/timer.hpp"
 
 namespace spconv {
 enum class Precision : int { None = 0, Float16 = 1, Int8 = 2 };
@@ -27,6 +28,7 @@ class INode{
   std::vector<SparseDTensor*> output_;
   std::string name_;
   bool is_computed = false;
+  nv::EventTimer timer_;
 };
 
 }// namespace spconv
