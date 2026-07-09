@@ -1,26 +1,19 @@
-# CUDA-BEVFusion
+# bevfusion_spconv_deploy
 
-This repository contains sources and model for [BEVFusion](https://github.com/mit-han-lab/bevfusion) inference using CUDA & TensorRT.
-![title](/assets/bevfusion.png)
-
-
-## 3D Object Detection(on nuScenes validation set)
-- For all models, we used the [BEVFusion-Base](https://github.com/mit-han-lab/bevfusion/blob/main/configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml) configuration.
-  - The camera resolution is 256x704
-- For the camera backbone, we chose SwinTiny and [ResNet50](configs/nuscenes/det/transfusion/secfpn/camera+lidar/resnet50/default.yaml).
-
-|         **Model**        | **Framework** | **Precision** | **mAP** | **NDS** | **FPS** |
-|:------------------------:|:-------------:|:-------------:|:-------:|:-------:|:----------------:|
-| Swin-Tiny <br/> BEVFusion-Base |    PyTorch    |   FP32+FP16   |  68.52  |  71.38  |         8.4(on RTX3090)        |
-|         ResNet50         |    PyTorch    |   FP32+FP16   |  67.93  |  70.97  |         -        |
-|         ResNet50         |    TensorRT   |      FP16     |  67.89  |  70.98  |        18(on ORIN)        |
-|         ResNet50-PTQ         |    TensorRT   |      FP16+INT8     |  67.66  |  70.81  |        25(on ORIN)        |
-- Note: The time we reported on ORIN is based on the average of nuScenes 6019 validation samples.
-  - Since the number of lidar points is the main reason that affects the FPS. 
-  - Please refer to the readme of [3DSparseConvolution](/libraries/3DSparseConvolution/README.md) for more details.
+This repo implements spconv deployment based on NVIDIA-bevfusion (https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution). See blog for details: https://blog.csdn.net/hehern/article/details/162737208?spm=1001.2014.3001.5501
 
 ## Demonstration
-![](../assets/cuda-bevfusion.gif)
+Tag v1.0 ports traveller59/spconv v1.2.1, where each kernel element sequentially executes Gather-Gemm-ScatterAdd with higher latency (open-sourced). Tag v2.0 ports v2.3.8 with fused Gather-Gemm-ScatterAdd (to be open-sourced). This repo currently supports fp16 only.
+<br>
+
+<div align="center">
+  <img src="assets/v1.0.png" alt="v1.0" width="48%" />
+  <img src="assets/v2.0.png" alt="v2.0" width="48%" />
+</div>
+
+<br>
+
+
 
 ## Model and Data
 - For quick practice, we provide an example data of nuScenes. You can download it from ( [Google Drive](https://drive.google.com/file/d/1RO493RSWyXbyS12yWk5ZzrixAeZQSnL8/view?usp=sharing) ) or ( [Baidu Drive](https://pan.baidu.com/s/1ED6eospSIF8oIQ2unU9WIQ?pwd=mtvt) ). It contains the following:
@@ -131,31 +124,8 @@ bash tool/build_trt_engine.sh
 bash tool/run.sh
 ```
 
-## Export onnx and PTQ
-- For more detail, please refer [here](qat/README.md)
+## Results
+v1.0 CUDA core code performance on RTX3080 compared with NVIDIA SO
 
-## For Python Interface
-1. Modify `USE_Python=ON` in environment.sh to enable compilation of python.
-2. Run `bash tool/run.sh` to build the libpybev.so.
-3. Run `python tool/pybev.py` to test the python interface.
-
-## For PyTorch BEVFusion
-- Use the following command to get a specific commit to avoid failure.
-```bash
-git clone https://github.com/mit-han-lab/bevfusion
-
-cd bevfusion
-git checkout db75150717a9462cb60241e36ba28d65f6908607
-```
-
-## Further performance improvement
-- Since the number of point clouds fluctuates more, this has a significant impact on the FPS.
-  - Consider using the ground removal or range filter algorithms provided in [cuPCL](https://github.com/NVIDIA-AI-IOT/cuPCL), which can decrease the inference time by lidar.
-- We just implemented the recommended partial quantization method. However, users can further reduce the inference latency by sparse pruning and 4:2 sparsity.
-  - In the resnet50 model at large resolutions, using the --sparsity=force option can significantly improve inference performance. For more details, please refer to [ASP](https://github.com/NVIDIA/apex/tree/master/apex/contrib/sparsity) (automatic sparsity tools).
-- In general, the camera backbone has less impact on accuracy and more impact on latency.
-  - A lighter camera backbone (such as resnet34) will achieve lower latency.
-
-## References
-- [BEVFusion: Multi-Task Multi-Sensor Fusion with Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542)
-- [BEVFusion Repository](https://github.com/mit-han-lab/bevfusion)
+![](assets/results.jpg)
+![](assets/nsight-compute.jpg)
