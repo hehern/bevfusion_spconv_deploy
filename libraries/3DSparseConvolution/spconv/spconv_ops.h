@@ -50,5 +50,16 @@ nv::Tensor indiceConv2(nv::Tensor features,
 void printFeatures(nv::Tensor features, void* stream);
 void clear_indice_cache();
 
+std::vector<nv::Tensor>
+getIndicePairsImplicitGemm(nv::Tensor indices,
+                           std::vector<int> outSpatialShape,
+                           std::vector<int> spatialShape,
+                           std::vector<int> kernelSize,
+                           std::vector<int> stride,
+                           std::vector<int> padding,
+                           std::vector<int> dilation,
+                           bool subm,
+                           void* stream);
+
 } // namespace spconv
 #endif

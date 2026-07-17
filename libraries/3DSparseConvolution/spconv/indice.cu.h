@@ -17,8 +17,11 @@
 // #include <cuhash/hash_table.cuh>
 // #include <spconv/geometry.h>
 // #include <device_atomic_functions.hpp>
+#include <numeric>
+#include <limits>
 #include "common/launch.cuh"
 #include "tensor.hpp"
+#include "ConvOutLocIter.h"
 
 namespace spconv {
 
@@ -324,6 +327,160 @@ judgeIndicesOutshapeKernel(size_t numActIn,
                voxel_x, voxel_y, voxel_z, outSpatialShape[0], outSpatialShape[1], outSpatialShape[2]);
   }
 }
+
+__global__ void 
+buildSubmConvHashTable(size_t numActIn, const int* indicesIn, 
+                       int* hash_k, int* hash_v,
+                       const int* inSpatialShape) {
+
+  int ix = cuda_linear_index;//每个active voxel分配一个thread
+  if (ix >= numActIn) return;//共计分配numActIn个thread
+
+  const auto& voxel_idx = indicesIn[4*ix+1];//indicesIn.shape = {n,4}
+  const auto& voxel_idy = indicesIn[4*ix+2];
+  const auto& voxel_idz = indicesIn[4*ix+3];
+  int index = (voxel_idx * inSpatialShape[1] + voxel_idy) * inSpatialShape[2] + voxel_idz;//(batch_id,x,y,z) --> index
+  hash_k[ix] = index;//index为从三维坐标index转换为一维index
+  hash_v[ix] = ix;//填充active voxel的序号[0, numActIn-1]
+
+}
+
+template <typename T>
+__global__ void fill_kernel(size_t numActIn, T* data, T val)   {
+
+  int ix = cuda_linear_index;
+  if (ix >= numActIn) return;
+  data[ix] = T(val);
+}
+
+__global__ void calc_subm_conv_indices_mask(const int* hashdata_k, const int* hashdata_v,
+                                            const int* indices_in, int32_t* indice_pairs, 
+                                            uint32_t* mask, int num_indices, int RS, int RS_half,
+                                            ConvOutLocIter& loc_iter) {
+  
+  int ix = cuda_2d_x;
+  int iy = cuda_2d_y;
+  if (ix >= num_indices || iy >= RS_half) return;
+
+  int filter_offset = blockIdx.y;//0-13
+  uint32_t filter_mask_out = (1u << (filter_offset % 32));
+  uint32_t filter_mask_in = (1u << ((RS - 1 - filter_offset) % 32));
+  loc_iter.set_filter_offset(filter_offset);
+
+  int filter_offset_mul_indices_pair_size = filter_offset * num_indices;
+  int filter_offset_mul_indices_pair_size_1 = (RS - 1 - filter_offset) * num_indices;
+  if (filter_offset == (RS / 2)){//kernel中心位置
+    indice_pairs[filter_offset_mul_indices_pair_size + ix] = ix;
+  } else {
+    // 由输出坐标计算输入坐标（1.0这时候是根据输入坐标计算输出坐标）
+    int nhw_offset[4];
+    if (loc_iter.query_nhw(indices_in + ix * 4, nhw_offset)) {//输出坐标计算输入坐标
+      auto offset = loc_iter.layout_npq(nhw_offset);//3d坐标转换为一维index
+      int table_offset;
+      for (table_offset = 0; table_offset < num_indices; ++table_offset) {//遍历hash表
+        if (hashdata_k[table_offset] == offset) break;
+      }
+      if (table_offset < num_indices) {//找到的情况下
+        auto input_index = hashdata_v[table_offset]; // we find a input indice idx.
+        atomicOr(mask + ix, filter_mask_out);//或操作，将当前对应的mask位置与当前kernel_mask进行或操作
+        atomicOr(mask + input_index, filter_mask_in);
+        // for this output, we set correct input idx.
+        indice_pairs[filter_offset_mul_indices_pair_size + ix] = input_index;
+  
+        // the output in "input location" connect this output idx in another location.
+        indice_pairs[filter_offset_mul_indices_pair_size_1 + input_index] = ix;
+      }
+    }
+    
+  }
+}
+
+template <typename T>
+__global__ void arange_kernel(size_t numActIn, T* data)   {
+  
+  int ix = cuda_linear_index;
+  if (ix >= numActIn) return;
+  data[ix] = T(ix);
+}
+
+template <typename T>
+__global__ void clean_indices_uniq(size_t size, T* indice_pairs_for_uniq)   {
+  
+  int ix = cuda_linear_index;
+  if (ix >= size) return;
+  indice_pairs_for_uniq[ix] = std::numeric_limits<T>::max();
+}
+
+__global__ void calc_conv_indices_stage1_mask(const int* indices_in, 
+                                              int32_t* indice_pairs_for_uniq, 
+                                              int num_indices_in, int RS,
+                                              ConvOutLocIter& loc_iter) {
+  
+  int ix = cuda_2d_x;
+  int iy = cuda_2d_y;
+  if (ix >= num_indices_in || iy >= RS) return;
+
+  int filter_offset = blockIdx.y;//0-RS
+  loc_iter.set_filter_offset(filter_offset);
+  int filter_offset_mul_indices_pair_size = filter_offset * num_indices_in;
+
+  int npq_offset[4];
+  if (loc_iter.query_npq(indices_in + ix * 4, npq_offset)) {//计算输出坐标
+    auto index = loc_iter.layout_npq(npq_offset);
+    indice_pairs_for_uniq[filter_offset_mul_indices_pair_size + ix] = index;
+  }
+
+}
+
+__global__ void build_conv_hash_table(size_t numAct,
+                                      int* hashdata_k, int* hashdata_v,
+                                      int* indices_out, int* indice_pairs_for_uniq, 
+                                      ConvOutLocIter& loc_iter) {
+  int ix = cuda_linear_index;
+  if (ix >= numAct) return;
+
+  auto output_coord_offset = indice_pairs_for_uniq[ix];
+  loc_iter.inverse(output_coord_offset, indices_out + 4 * ix);
+  hashdata_k[ix] = output_coord_offset;
+  hashdata_v[ix] = ix;
+}
+
+__device__ int find_in_hash_k(const int* hash_k, int hash_size, int value) {
+  for (int i = 0; i < hash_size; ++i) {
+    if (hash_k[i] == value) return i;
+  }
+  return -1;
+}
+
+__global__ void calc_conv_indices_stage2_inference_mask(int* hash_k, int* hash_v, 
+                                                        int* indice_pairs,
+                                                        const int* indice_pairs_uniq_before_sort, 
+                                                        uint32_t* mask_fwd, 
+                                                        int num_indices_in, 
+                                                        int num_indices_out,
+                                                        int RS, int hash_size) {
+  
+  int ix = cuda_2d_x;
+  int iy = cuda_2d_y;
+  if (ix >= num_indices_in || iy >= RS) return;
+
+  int filter_offset = blockIdx.y;
+  uint32_t filter_mask_fwd = (1u << (filter_offset % 32));
+  auto indice_pairs_filter = indice_pairs + filter_offset * num_indices_out;
+
+  auto indice_pairs_uniq_before_sort_filter = indice_pairs_uniq_before_sort + filter_offset * num_indices_in;
+  auto output_coord_offset = indice_pairs_uniq_before_sort_filter[ix];
+
+  if (output_coord_offset != std::numeric_limits<int32_t>::max()){
+    auto table_offset = find_in_hash_k(hash_k, hash_size, output_coord_offset);
+    if (table_offset != -1){//找到的情况下
+      auto output_index = hash_v[table_offset];
+      atomicOr(mask_fwd + output_index, filter_mask_fwd);
+      indice_pairs_filter[output_index] = ix;
+    }
+  }
+}
+
 
 } // namespace spconv
 #endif

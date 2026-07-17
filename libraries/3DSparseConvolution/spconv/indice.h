@@ -15,8 +15,12 @@
 #ifndef SPARSE_CONV_INDICE_FUNCTOR_H_
 #define SPARSE_CONV_INDICE_FUNCTOR_H_
 #include "tensor.hpp"
+#include "ConvOutLocIter.h"
 
 namespace spconv {
+
+#define divup(a, b) ((static_cast<int>(a) + static_cast<int>(b) - 1) / static_cast<int>(b))
+
 int create_conv_indice_pair_p1_cuda(
     nv::Tensor indicesIn, nv::Tensor indicePairs, nv::Tensor indiceNum,
     nv::Tensor indicePairUnique, std::vector<int> kernelSize,
@@ -38,6 +42,33 @@ int create_submconv_indice_pair_cuda(
 nv::Tensor find_unique_elements_cuda(nv::Tensor& src_tensor, void* stream);
 
 void judgeIndicesOutshape(nv::Tensor indices, std::vector<int> outSpatialShape, void* stream);
+
+int generate_subm_conv_inds(nv::Tensor indices, nv::Tensor hashdata_k, 
+                            nv::Tensor hashdata_v, nv::Tensor indice_pairs,
+                            std::vector<int> input_dims, std::vector<int> ksize, 
+                            nv::Tensor indice_pair_mask, 
+                            ConvOutLocIter& loc_iter, void* stream);
+
+nv::Tensor sort_1d_by_key_allocator_v2(nv::Tensor data, nv::Tensor indices, void* stream);
+
+void generate_conv_inds_mask_stage1(nv::Tensor indices, 
+                                    nv::Tensor indice_pairs_uniq,
+                                    std::vector<int> ksize,
+                                    ConvOutLocIter& loc_iter,
+                                    void* stream);
+
+int generate_conv_inds_mask_stage2(nv::Tensor indices, 
+                                   nv::Tensor hashdata_k, 
+                                   nv::Tensor hashdata_v, 
+                                   nv::Tensor indice_pairs,
+                                   nv::Tensor indice_pairs_uniq, 
+                                   nv::Tensor indice_pairs_uniq_before_sort, 
+                                   nv::Tensor out_inds, 
+                                   nv::Tensor mask_fwd,
+                                   int num_out_act,
+                                   std::vector<int> ksize, 
+                                   ConvOutLocIter& loc_iter,
+                                   void* stream);
 } // namespace spconv
 
 #endif

@@ -37,8 +37,12 @@ find_package(Protobuf REQUIRED)
 set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB")
 set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
 
-set(CUDA_NVCC_FLAGS_RELEASE "-Werror=all-warnings -Xcompiler -std=c++14,-Wextra,-Wall,-Wno-deprecated-declarations,-O3 -DENABLE_TEXT_BACKEND_STB")
-set(CUDA_NVCC_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+set(CUDA_NVCC_FLAGS_RELEASE "-Werror=all-warnings --expt-relaxed-constexpr -Xcompiler -std=c++14,-Wextra,-Wall,-Wno-deprecated-declarations,-O3 -DENABLE_TEXT_BACKEND_STB")
+set(CUDA_NVCC_FLAGS_DEBUG   "--expt-relaxed-constexpr -std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+
+# Tell nvcc's host compiler not to treat unused parameters as errors
+list(APPEND CUDA_NVCC_FLAGS_RELEASE -Xcompiler -Wno-unused-parameter -Xcompiler -Wno-error=unused-parameter)
+list(APPEND CUDA_NVCC_FLAGS_DEBUG   -Xcompiler -Wno-unused-parameter)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} 
   -gencode arch=compute_$ENV{CUDASM},code=compute_$ENV{CUDASM}

@@ -461,6 +461,7 @@ void Tensor::fill(const T value) {
   }
 }
 template void Tensor::fill<int32_t>(const int32_t);
+template void Tensor::fill<uint32_t>(const uint32_t);
 template void Tensor::fill<half>(const half);
 
 Tensor Tensor::loadbinary(const std::string& file, std::vector<int64_t> shape, DataType dtype, bool device) {
