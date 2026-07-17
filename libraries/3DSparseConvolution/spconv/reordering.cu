@@ -23,64 +23,9 @@ namespace spconv {
 void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters, nv::Tensor& output,
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
-  half* features_ptr = features.ptr<half>();//其实是fp16
-  half*  weight_ptr = filters.ptr<half>();//这里需要加个偏移量到filters[i]
+  half* features_ptr = features.ptr<half>();
   half* output_ptr = output.ptr<half>();
-  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
-  const int key = (numInPlanes << 16) | numOutPlanes;
-  switch (key) {
-    // case (5 << 16) | 16:   // 5x16
-    //   {
-    //     const int BM = 512;
-    //     const int BK = 5;
-    //     const int BN = 16;
-    //     const int TM = 8;
-    //     const int TN = 8;
-    //     dim3 __threads__(BM/TM, BN/TN);//64,2
-    //     dim3 __blocks__(divup(numActOut, BM), 1);
-    //     fp16_gemm_5x16_V2<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-    //   }
-    //   break;
-    // case (16 << 16) | 16:  // 16x16
-    //   {
-    //     const int BM = 128;
-    //     const int BK = 16;
-    //     const int BN = 16;
-    //     const int TM = 8;
-    //     const int TN = 8;
-    //     dim3 __threads__(BM/TM, BN/TN);//16,2
-    //     dim3 __blocks__(divup(numActOut, BM), 1);
-    //     fp16_gemm_16x16<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-    //   }
-    //   break;
-    // case (16 << 16) | 32:  // 16x32
-    //   {
-    //     const int BM = 128;
-    //     const int BK = 16;
-    //     const int BN = 32;
-    //     const int TM = 8;
-    //     const int TN = 8;
-    //     dim3 __threads__(BM/TM, BN/TN);//16,4
-    //     dim3 __blocks__(divup(numActOut, BM), 1);
-    //     fp16_gemm_16x32<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-    //   }
-    //   break;
-    default:
-      {
-        // dim3 __threads__(32, 32);
-        // dim3 __blocks__(divup(numActOut, 32), divup(numOutPlanes, 32));
-        // matrixMultiply<<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-        const int BM = 128;
-        const int BK = 8;
-        const int BN = 128;
-        const int TM = 8;
-        const int TN = 8;
-        dim3 __threads__(BM/TM, BN/TN);
-        dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
-        SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features_ptr, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output_ptr);
-      }
-  }
-
+  matrix_multiply_cuda(features_ptr, filters, output_ptr, numActOut, numOutPlanes, numInPlanes, filter_offset, stream);
 }
 
 void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* output,
