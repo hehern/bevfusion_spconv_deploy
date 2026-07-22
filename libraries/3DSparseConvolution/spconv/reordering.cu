@@ -34,6 +34,7 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
   half* weight_ptr = filters.ptr<half>();
   cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
+  /*
   const int BM = 128;
   const int BK = 8;
   const int BN = 128;
@@ -42,6 +43,17 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
   dim3 __threads__(BM/TM, BN/TN);
   dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
   SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output);
+  */
+  constexpr int WMMA_M=16;
+  constexpr int WMMA_N=16;
+  constexpr int WMMA_K=16;
+  constexpr int WMMA_TILE_M=4;
+  constexpr int WMMA_TILE_N=2;
+  dim3 __threads__(32 * WMMA_TILE_M * WMMA_TILE_N);//256
+  dim3 __blocks__(divup(numOutPlanes, WMMA_N*WMMA_TILE_N), divup(numActOut, WMMA_M*WMMA_TILE_M));
+  hgemm_wmma_m16n16k16_mma4x2_kernel<WMMA_M,WMMA_N,WMMA_K,WMMA_TILE_M,WMMA_TILE_N><<<__blocks__, __threads__, 0, _stream>>>(
+      features, weight_ptr + filter_offset * numInPlanes * numOutPlanes, output,
+      numActOut, numOutPlanes, numInPlanes);
 }
 
 /***

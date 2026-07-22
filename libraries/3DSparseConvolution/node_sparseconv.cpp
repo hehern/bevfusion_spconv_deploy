@@ -87,6 +87,7 @@ void SparseConvolution::forward(void *stream) {
   }
 
   // step2:conv计算
+  // nv::Tensor result = indiceConv(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, stream);
   nv::Tensor result = indiceConv2(input_[0]->features(), weight_, datas[1], datas[2], datas[0].shape[0], submanifold_, rulebook_, stream);
   addBiasAndRelu(result, bias_, activation_=="ReLU", stream);
   // nv::Tensor result = implicit_gemm(input_[0]->features(), weight_, datas[1], datas[2], datas[3], datas[4], submanifold_, stream);

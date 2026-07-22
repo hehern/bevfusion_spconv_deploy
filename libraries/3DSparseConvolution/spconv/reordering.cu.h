@@ -16,6 +16,7 @@
 #define REORDERING_CU_H_
 
 #include <cuda_fp16.h>
+#include <mma.h>
 #include "common/launch.cuh"
 
 #define OFFSET(row, col, ld) ((row) * (ld) + (col))
@@ -899,6 +900,123 @@ __global__ void gatherAllKernelUnified(
     }
   }
 }
+
+// ──────────────────────────────────────────────────────
+// TensorCore Matrix Multiplication (WMMA API)
+// C[M,N] = A[M,K] × B[K,N]，M/N/K 含义与 SgemmV6 一致
+// 相比 CUDA core SgemmV6，TensorCore 的 mma 指令吞吐约 4x
+// 适用于 K >= 16 的场景
+// ──────────────────────────────────────────────────────
+using namespace nvcuda;
+__device__ __host__ inline half2* LDST32BITS(void *value){
+    return reinterpret_cast<half2*>(value);
+}
+//这里不要管数据形式，只用管字节量即可。2个float2即half4
+__device__ __host__ inline float2* LDST64BITS(void *value){
+    return reinterpret_cast<float2*>(value);
+}
+ 
+template<const int WMMA_M=16,const int WMMA_N=16,const int WMMA_K=16,
+    //WMMA_TILE_M表示M方向wmma 块的个数，WMMA_TILE_N同理
+    const int WMMA_TILE_M=4,const int WMMA_TILE_N=2>
+__global__ void hgemm_wmma_m16n16k16_mma4x2_kernel(
+    half *A, half *B, half *C, int M,int N,int K
+){
+    //每个block有256线程（8个warp）
+    //bx是N方向的偏移，by是M方向的偏移
+    const int bx=blockIdx.x;
+    const int by=blockIdx.y;
+    const int NUM_K_TILES=(K + WMMA_K - 1) / WMMA_K;
+    //BM是一个block内，沿M维度的行数
+    //BN是一个block内，沿N维度的列数
+    //BK的一个block内，沿K维度的大小，本模式K方向只有一个wmma块，所以是16
+    constexpr int BM=WMMA_M*WMMA_TILE_M;    //16*4=64   WMMA_TILE_M是4
+    constexpr int BN=WMMA_N*WMMA_TILE_N;    //16*2=32   WMMA_TILE_N是2
+    constexpr int BK=WMMA_K;                //16      
+    //共享内存只在block内共享。s_a是A里BM*BM大小的矩阵，s_b是B里BK*BN的矩阵
+    __shared__ half s_a[BM][BK],s_b[BK][BN];//64*16*2=2KB,16*32*2=1KB
+ 
+    const int tid=threadIdx.x;//0-255 block内线程编号
+    const int warp_id=tid/32; //0-7 block内warp编号
+    // const int lane_id=tid%32;  //0-31 warp内线程编号
+    //通过warp_id分配warp对应的区域 warp_id->(warp_m,warp_n)[刚好对应M方向4个tile，N方向2个tile]
+    const int warp_m=warp_id/2;     //0,1,2,3
+    const int warp_n=warp_id%2;    //0,1
+ 
+    //256线程分别load s_a=64*16,s_b=16*32
+    //64*16/256=4 half4 每个线程load 4个half
+    //16*32/256=2 half2,每个线程load 2个half
+ 
+    //s_a(64行16列) 每个线程load 4half，每行需要4个线程，总共64行，对应总数256线程
+    const int load_smem_a_m=tid/4;  //  0-63 M方向64行
+    const int load_smem_a_k=(tid%4)*4;  //0,4,8,12 K方向开头是4的倍数
+ 
+    const int load_smem_b_k=tid/16; //0-15 K方向16行
+    const int load_smem_b_n=(tid%16)*2; //0,2,4... N方向开头是2的倍数
+
+    s_a[load_smem_a_m][load_smem_a_k + 0] = __float2half(0.0f);
+    s_a[load_smem_a_m][load_smem_a_k + 1] = __float2half(0.0f);
+    s_a[load_smem_a_m][load_smem_a_k + 2] = __float2half(0.0f);
+    s_a[load_smem_a_m][load_smem_a_k + 3] = __float2half(0.0f);
+    s_b[load_smem_b_k][load_smem_b_n + 0] = __float2half(0.0f);
+    s_b[load_smem_b_k][load_smem_b_n + 1] = __float2half(0.0f);
+    __syncthreads();
+ 
+    const int load_gmem_a_m=by*BM+load_smem_a_m;    //计算本线程对应的A矩阵的行索引
+    const int load_gmem_b_n=bx*BN+load_smem_b_n;    //计算本线程对应的B矩阵的列索引
+    if(load_gmem_a_m>=M||load_gmem_b_n>=N)
+      return;
+
+    wmma::fragment<wmma::accumulator,WMMA_M,WMMA_N,WMMA_K,half> C_frag;
+    wmma::fill_fragment(C_frag,0.0);
+    wmma::fragment<wmma::matrix_a,WMMA_M,WMMA_N,WMMA_K,half,wmma::row_major> A_frag;
+    wmma::fragment<wmma::matrix_b,WMMA_M,WMMA_N,WMMA_K,half,wmma::row_major> B_frag;
+    //沿着K方向移动，每个wmma对应的A_frag和B_frag都会移动
+    for(int k=0;k<NUM_K_TILES;k++){
+        int load_gmem_a_k=k*WMMA_K+load_smem_a_k;//计算本线程对应A矩阵的列索引
+        int load_gmem_a_addr=load_gmem_a_m*K+load_gmem_a_k;//计算本线程读取A矩阵的起始位置
+ 
+        int load_gmem_b_k=k*WMMA_K+load_smem_b_k;//计算本线程对应B矩阵的行索引
+        int load_gmem_b_addr=load_gmem_b_k*N+load_gmem_b_n;//计算本线程读取B矩阵的起始位置
+        //每次从A矩阵加载4个half到共享内存
+        if (load_gmem_a_k + 3 < K) {
+          // *LDST64BITS(&s_a[load_smem_a_m][load_smem_a_k])=*LDST64BITS(&A[load_gmem_a_addr]);
+          s_a[load_smem_a_m][load_smem_a_k + 0] = A[load_gmem_a_addr + 0];
+          s_a[load_smem_a_m][load_smem_a_k + 1] = A[load_gmem_a_addr + 1];
+          s_a[load_smem_a_m][load_smem_a_k + 2] = A[load_gmem_a_addr + 2];
+          s_a[load_smem_a_m][load_smem_a_k + 3] = A[load_gmem_a_addr + 3];
+        } else {
+          #pragma unroll
+          for (int i = 0; i < K - load_gmem_a_k; i++) {
+            s_a[load_smem_a_m][load_smem_a_k + i] = A[load_gmem_a_addr + i];
+          }
+        }
+        //每次从B矩阵加载2个half到共享内存
+        if (load_gmem_b_k < K) {
+          if (load_gmem_b_n + 1 < N) {
+            *LDST32BITS(&s_b[load_smem_b_k][load_smem_b_n])=*LDST32BITS(&B[load_gmem_b_addr]);
+          } else {
+            #pragma unroll
+            for (int i = 0; i < N - load_gmem_b_n; i++) {
+              s_b[load_smem_b_k][load_smem_b_n + i] = B[load_gmem_b_addr + i];
+            }
+          }
+        }
+
+        //block内同步
+        __syncthreads();
+        wmma::load_matrix_sync(A_frag,&s_a[warp_m*WMMA_M][0],BK);
+        wmma::load_matrix_sync(B_frag,&s_b[0][warp_n*WMMA_N],BN);
+        //C+=A*B
+        wmma::mma_sync(C_frag,A_frag,B_frag,C_frag);
+        __syncthreads();
+    }
+    //by*BM和bx*BN是本block负责的C区域的左上角
+    const int store_gmem_a_m=by*BM+warp_m*WMMA_M;//本block内本warp负责的wmma的行索引开头
+    const int store_gmem_a_n=bx*BN+warp_n*WMMA_N;//本block内本warp负责的wmma的列索引开头
+    wmma::store_matrix_sync(C+store_gmem_a_m*N+store_gmem_a_n,C_frag,N,wmma::mem_row_major);
+}
+
 
 } // namespace spconv
 #endif
