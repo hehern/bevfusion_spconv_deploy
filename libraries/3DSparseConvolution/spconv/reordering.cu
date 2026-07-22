@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "cutlass/gemm/device/gemm.h"
 
 #include "spconv/reordering.cu.h"
 #include "spconv/reordering.h"
@@ -19,6 +20,44 @@
 #include <cublas_v2.h>
 
 namespace spconv {
+
+cudaError_t CutlassSgemmNN(
+  int M,
+  int N,
+  int K,
+  half alpha,
+  half const *A,
+  int lda,
+  half const *B,
+  int ldb,
+  half beta,
+  half *C,
+  int ldc) {
+
+  using RowMajor = cutlass::layout::RowMajor;
+
+  using CutlassGemm = cutlass::gemm::device::Gemm<half,        // Data-type of A matrix
+                                                  RowMajor,    // Layout of A matrix
+                                                  half,        // Data-type of B matrix
+                                                  RowMajor,    // Layout of B matrix
+                                                  half,        // Data-type of C matrix
+                                                  RowMajor>;   // Layout of C matrix
+
+  CutlassGemm gemm_operator;
+  CutlassGemm::Arguments args({M , N, K},  // Gemm Problem dimensions
+                              {A, lda},    // Tensor-ref for source matrix A
+                              {B, ldb},    // Tensor-ref for source matrix B
+                              {C, ldc},    // Tensor-ref for source matrix C
+                              {C, ldc},    // Tensor-ref for destination matrix D (may be different memory than source C matrix)
+                              {alpha, beta}); // Scalars used in the Epilogue
+
+  cutlass::Status status = gemm_operator(args);
+
+  if (status != cutlass::Status::kSuccess) {
+    return cudaErrorUnknown;
+  }
+  return cudaSuccess;
+}
 
 void matrix_multiply_cuda(const nv::Tensor& features, const nv::Tensor& filters, nv::Tensor& output,
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
@@ -32,7 +71,7 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
   half* weight_ptr = filters.ptr<half>();
-  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  // cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
   /*
   const int BM = 128;
@@ -44,6 +83,8 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
   dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
   SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output);
   */
+
+  /*
   constexpr int WMMA_M=16;
   constexpr int WMMA_N=16;
   constexpr int WMMA_K=16;
@@ -54,6 +95,12 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
   hgemm_wmma_m16n16k16_mma4x2_kernel<WMMA_M,WMMA_N,WMMA_K,WMMA_TILE_M,WMMA_TILE_N><<<__blocks__, __threads__, 0, _stream>>>(
       features, weight_ptr + filter_offset * numInPlanes * numOutPlanes, output,
       numActOut, numOutPlanes, numInPlanes);
+  */
+
+  cudaError_t result = CutlassSgemmNN(numActOut, numOutPlanes, numInPlanes, __float2half(1.0f), 
+      features, numInPlanes,                                                   // A[M,K]: lda = K
+      weight_ptr + filter_offset * numInPlanes * numOutPlanes, numOutPlanes,   // B[K,N]: ldb = N
+      __float2half(0.0f), output, numOutPlanes);                               // C[M,N]: ldc = N
 }
 
 /***

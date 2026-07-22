@@ -57,6 +57,7 @@ include_directories(
   dependencies/pybind11/include
   libraries/cuOSD/src
   libraries/3DSparseConvolution
+  $ENV{CUTLASS_Inc}
   src/common
   src/
 )
