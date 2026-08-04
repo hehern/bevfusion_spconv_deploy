@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "cutlass/gemm/device/gemm.h"
+#include "cutlass/gemm/device/gemm_universal.h"
 
 #include "spconv/reordering.cu.h"
 #include "spconv/reordering.h"
@@ -21,6 +21,8 @@
 
 namespace spconv {
 
+// CUTLASS 4.6 + Sm80 + OpClassTensorOp + fp16
+// 参考: cutlass/examples/47_ampere_gemm_universal_streamk
 cudaError_t CutlassSgemmNN(
   int M,
   int N,
@@ -32,28 +34,71 @@ cudaError_t CutlassSgemmNN(
   int ldb,
   half beta,
   half *C,
-  int ldc) {
+  int ldc,
+  cudaStream_t stream = nullptr) {
 
   using RowMajor = cutlass::layout::RowMajor;
 
-  using CutlassGemm = cutlass::gemm::device::Gemm<half,        // Data-type of A matrix
-                                                  RowMajor,    // Layout of A matrix
-                                                  half,        // Data-type of B matrix
-                                                  RowMajor,    // Layout of B matrix
-                                                  half,        // Data-type of C matrix
-                                                  RowMajor>;   // Layout of C matrix
+  using ElementA = cutlass::half_t;
+  using ElementB = cutlass::half_t;
+  using ElementC = cutlass::half_t;
+  using ElementAccumulator = cutlass::half_t;
+  using ElementCompute = cutlass::half_t;
+
+  using ArchTag = cutlass::arch::Sm80;
+  using OperatorClass = cutlass::arch::OpClassTensorOp;
+
+  using ThreadblockShape = cutlass::gemm::GemmShape<128, 128, 32>;
+  using WarpShape = cutlass::gemm::GemmShape<64, 64, 32>;
+  using InstructionShape = cutlass::gemm::GemmShape<16, 8, 16>;
+  constexpr int NumStages = 4;
+  // Alignment=2 (4字节) 是 sm_80 cp.async 的最小支持大小
+  constexpr int AlignmentA = 8;
+  constexpr int AlignmentB = 8;
+  constexpr int AlignmentC = 8;
+
+  using EpilogueOp = cutlass::epilogue::thread::LinearCombination<
+      ElementC, AlignmentC, ElementAccumulator, ElementCompute>;
+
+  using CutlassGemm = cutlass::gemm::device::GemmUniversal<
+      ElementA, RowMajor, ElementB, RowMajor, ElementC, RowMajor,
+      ElementAccumulator, OperatorClass, ArchTag,
+      ThreadblockShape, WarpShape, InstructionShape, EpilogueOp,
+      cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
+      NumStages, AlignmentA, AlignmentB>;
 
   CutlassGemm gemm_operator;
-  CutlassGemm::Arguments args({M , N, K},  // Gemm Problem dimensions
-                              {A, lda},    // Tensor-ref for source matrix A
-                              {B, ldb},    // Tensor-ref for source matrix B
-                              {C, ldc},    // Tensor-ref for source matrix C
-                              {C, ldc},    // Tensor-ref for destination matrix D (may be different memory than source C matrix)
-                              {alpha, beta}); // Scalars used in the Epilogue
 
-  cutlass::Status status = gemm_operator(args);
+  int64_t batch_stride_A = static_cast<int64_t>(M) * K;
+  int64_t batch_stride_B = static_cast<int64_t>(K) * N;
+  int64_t batch_stride_C = static_cast<int64_t>(M) * N;
+  int64_t batch_stride_D = batch_stride_C;
 
+  typename CutlassGemm::Arguments args(
+      cutlass::gemm::GemmUniversalMode::kGemm,
+      {M, N, K},
+      1,
+      {ElementCompute(alpha), ElementCompute(beta)},
+      A, B, C, C,
+      batch_stride_A, batch_stride_B, batch_stride_C, batch_stride_D,
+      lda, ldb, ldc, ldc);
+
+  cutlass::Status status = gemm_operator.can_implement(args);
   if (status != cutlass::Status::kSuccess) {
+    fprintf(stderr, "[CUTLASS] can_implement failed: %d (M=%d N=%d K=%d)\n",
+            int(status), M, N, K);
+    return cudaErrorUnknown;
+  }
+
+  status = gemm_operator.initialize(args, stream);
+  if (status != cutlass::Status::kSuccess) {
+    fprintf(stderr, "[CUTLASS] initialize failed: %d\n", int(status));
+    return cudaErrorUnknown;
+  }
+
+  status = gemm_operator(stream);
+  if (status != cutlass::Status::kSuccess) {
+    fprintf(stderr, "[CUTLASS] run failed: %d\n", int(status));
     return cudaErrorUnknown;
   }
   return cudaSuccess;
@@ -71,36 +116,28 @@ void matrix_multiply_cuda(half* features, const nv::Tensor& filters, half* outpu
                           int numActOut, int numOutPlanes, int numInPlanes, int filter_offset, 
                           void* stream) {
   half* weight_ptr = filters.ptr<half>();
-  // cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
+  cudaStream_t _stream = reinterpret_cast<cudaStream_t>(stream);
 
-  /*
-  const int BM = 128;
-  const int BK = 8;
-  const int BN = 128;
-  const int TM = 8;
-  const int TN = 8;
-  dim3 __threads__(BM/TM, BN/TN);
-  dim3 __blocks__(divup(numActOut, BM), divup(numOutPlanes, BN));
-  SgemmV6<BM, BK, BN, TM, TN><<<__blocks__, __threads__, 0, _stream>>>(numActOut, numOutPlanes, numInPlanes, features, weight_ptr+filter_offset*numInPlanes*numOutPlanes, output);
-  */
-
-  /*
-  constexpr int WMMA_M=16;
-  constexpr int WMMA_N=16;
-  constexpr int WMMA_K=16;
-  constexpr int WMMA_TILE_M=4;
-  constexpr int WMMA_TILE_N=2;
-  dim3 __threads__(32 * WMMA_TILE_M * WMMA_TILE_N);//256
-  dim3 __blocks__(divup(numOutPlanes, WMMA_N*WMMA_TILE_N), divup(numActOut, WMMA_M*WMMA_TILE_M));
-  hgemm_wmma_m16n16k16_mma4x2_kernel<WMMA_M,WMMA_N,WMMA_K,WMMA_TILE_M,WMMA_TILE_N><<<__blocks__, __threads__, 0, _stream>>>(
-      features, weight_ptr + filter_offset * numInPlanes * numOutPlanes, output,
-      numActOut, numOutPlanes, numInPlanes);
-  */
-
-  cudaError_t result = CutlassSgemmNN(numActOut, numOutPlanes, numInPlanes, __float2half(1.0f), 
-      features, numInPlanes,                                                   // A[M,K]: lda = K
-      weight_ptr + filter_offset * numInPlanes * numOutPlanes, numOutPlanes,   // B[K,N]: ldb = N
-      __float2half(0.0f), output, numOutPlanes);                               // C[M,N]: ldc = N
+  if (numInPlanes >= 16) {
+    // K >= 16: 使用 CUTLASS TensorCore
+    CutlassSgemmNN(numActOut, numOutPlanes, numInPlanes, __float2half(1.0f),
+        features, numInPlanes,
+        weight_ptr + filter_offset * numInPlanes * numOutPlanes, numOutPlanes,
+        __float2half(0.0f), output, numOutPlanes,
+        _stream);
+  } else {
+    // K < 16: 回退到手写 WMMA kernel
+    constexpr int WMMA_M=16;
+    constexpr int WMMA_N=16;
+    constexpr int WMMA_K=16;
+    constexpr int WMMA_TILE_M=4;
+    constexpr int WMMA_TILE_N=2;
+    dim3 __threads__(32 * WMMA_TILE_M * WMMA_TILE_N);
+    dim3 __blocks__(divup(numOutPlanes, WMMA_N*WMMA_TILE_N), divup(numActOut, WMMA_M*WMMA_TILE_M));
+    hgemm_wmma_m16n16k16_mma4x2_kernel<WMMA_M,WMMA_N,WMMA_K,WMMA_TILE_M,WMMA_TILE_N><<<__blocks__, __threads__, 0, _stream>>>(
+        features, weight_ptr + filter_offset * numInPlanes * numOutPlanes, output,
+        numActOut, numOutPlanes, numInPlanes);
+  }
 }
 
 /***
