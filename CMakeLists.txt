@@ -30,15 +30,12 @@ set(arch ${CMAKE_HOST_SYSTEM_PROCESSOR})
 find_package(CUDA REQUIRED)
 find_package(Protobuf REQUIRED)
 
-# For cuda-12
-# set(CMAKE_CXX_FLAGS_RELEASE "-std=c++17 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB")
-# set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++17 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+# For cuda-12 / CUTLASS 4.x (requires C++17)
+set(CMAKE_CXX_FLAGS_RELEASE "-std=c++17 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -Wno-error=attributes -O3 -DENABLE_TEXT_BACKEND_STB")
+set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++17 -Wno-error=attributes -O0 -g -DENABLE_TEXT_BACKEND_STB")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3 -DENABLE_TEXT_BACKEND_STB")
-set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
-
-set(CUDA_NVCC_FLAGS_RELEASE "-Werror=all-warnings --expt-relaxed-constexpr -Xcompiler -std=c++14,-Wextra,-Wall,-Wno-deprecated-declarations,-O3 -DENABLE_TEXT_BACKEND_STB")
-set(CUDA_NVCC_FLAGS_DEBUG   "--expt-relaxed-constexpr -std=c++14 -O0 -g -DENABLE_TEXT_BACKEND_STB")
+set(CUDA_NVCC_FLAGS_RELEASE "-std=c++17 -Werror=all-warnings --diag-suppress=20012 --expt-relaxed-constexpr -Xcompiler -std=c++17,-Wextra,-Wall,-Wno-deprecated-declarations,-Wno-error=attributes,-O3 -DENABLE_TEXT_BACKEND_STB")
+set(CUDA_NVCC_FLAGS_DEBUG   "-std=c++17 --expt-relaxed-constexpr --diag-suppress=20012 -Xcompiler -std=c++17,-Wno-error=attributes -O0 -g -DENABLE_TEXT_BACKEND_STB")
 
 # Tell nvcc's host compiler not to treat unused parameters as errors
 list(APPEND CUDA_NVCC_FLAGS_RELEASE -Xcompiler -Wno-unused-parameter -Xcompiler -Wno-error=unused-parameter)
