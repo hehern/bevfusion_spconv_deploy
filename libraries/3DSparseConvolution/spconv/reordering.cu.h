@@ -964,8 +964,8 @@ __global__ void hgemm_wmma_m16n16k16_mma4x2_kernel(
  
     const int load_gmem_a_m=by*BM+load_smem_a_m;    //计算本线程对应的A矩阵的行索引
     const int load_gmem_b_n=bx*BN+load_smem_b_n;    //计算本线程对应的B矩阵的列索引
-    if(load_gmem_a_m>=M||load_gmem_b_n>=N)
-      return;
+    // 注意: 不能提前 return，WMMA 要求 warp 内 32 线程全部参与
+    // 越界的线程只跳过全局内存加载（共享内存已初始化为 0），仍参与 WMMA 操作
 
     wmma::fragment<wmma::accumulator,WMMA_M,WMMA_N,WMMA_K,half> C_frag;
     wmma::fill_fragment(C_frag,0.0);
@@ -975,31 +975,27 @@ __global__ void hgemm_wmma_m16n16k16_mma4x2_kernel(
     for(int k=0;k<NUM_K_TILES;k++){
         int load_gmem_a_k=k*WMMA_K+load_smem_a_k;//计算本线程对应A矩阵的列索引
         int load_gmem_a_addr=load_gmem_a_m*K+load_gmem_a_k;//计算本线程读取A矩阵的起始位置
- 
+
         int load_gmem_b_k=k*WMMA_K+load_smem_b_k;//计算本线程对应B矩阵的行索引
         int load_gmem_b_addr=load_gmem_b_k*N+load_gmem_b_n;//计算本线程读取B矩阵的起始位置
         //每次从A矩阵加载4个half到共享内存
-        if (load_gmem_a_k + 3 < K) {
-          // *LDST64BITS(&s_a[load_smem_a_m][load_smem_a_k])=*LDST64BITS(&A[load_gmem_a_addr]);
+        if (load_gmem_a_m < M && load_gmem_a_k + 3 < K) {
           s_a[load_smem_a_m][load_smem_a_k + 0] = A[load_gmem_a_addr + 0];
           s_a[load_smem_a_m][load_smem_a_k + 1] = A[load_gmem_a_addr + 1];
           s_a[load_smem_a_m][load_smem_a_k + 2] = A[load_gmem_a_addr + 2];
           s_a[load_smem_a_m][load_smem_a_k + 3] = A[load_gmem_a_addr + 3];
-        } else {
+        } else if (load_gmem_a_m < M && load_gmem_a_k < K) {
           #pragma unroll
           for (int i = 0; i < K - load_gmem_a_k; i++) {
             s_a[load_smem_a_m][load_smem_a_k + i] = A[load_gmem_a_addr + i];
           }
         }
         //每次从B矩阵加载2个half到共享内存
-        if (load_gmem_b_k < K) {
+        if (load_gmem_b_k < K && load_gmem_b_n < N) {
           if (load_gmem_b_n + 1 < N) {
             *LDST32BITS(&s_b[load_smem_b_k][load_smem_b_n])=*LDST32BITS(&B[load_gmem_b_addr]);
           } else {
-            #pragma unroll
-            for (int i = 0; i < N - load_gmem_b_n; i++) {
-              s_b[load_smem_b_k][load_smem_b_n + i] = B[load_gmem_b_addr + i];
-            }
+            s_b[load_smem_b_k][load_smem_b_n] = B[load_gmem_b_addr];
           }
         }
 
@@ -1012,9 +1008,11 @@ __global__ void hgemm_wmma_m16n16k16_mma4x2_kernel(
         __syncthreads();
     }
     //by*BM和bx*BN是本block负责的C区域的左上角
-    const int store_gmem_a_m=by*BM+warp_m*WMMA_M;//本block内本warp负责的wmma的行索引开头
-    const int store_gmem_a_n=bx*BN+warp_n*WMMA_N;//本block内本warp负责的wmma的列索引开头
-    wmma::store_matrix_sync(C+store_gmem_a_m*N+store_gmem_a_n,C_frag,N,wmma::mem_row_major);
+    const int store_gmem_m=by*BM+warp_m*WMMA_M;//本block内本warp负责的wmma的行索引开头
+    const int store_gmem_n=bx*BN+warp_n*WMMA_N;//本block内本warp负责的wmma的列索引开头
+    //只有当输出区域在边界内时才存储
+    if(store_gmem_m < M && store_gmem_n < N)
+        wmma::store_matrix_sync(C+store_gmem_m*N+store_gmem_n,C_frag,N,wmma::mem_row_major);
 }
 
 
